@@ -48,17 +48,14 @@ class Mamitas_Create_Dataset(Dataset):
         return img, mask, id_image
 
 class Mamitas_Thermal_Feet_Dataset():
-    def __init__(self, credential=None, file_path_zip='', final_path='', final_path_zip='', mode='kaggle'):
-        self.credential = credential
-        self.mode = mode
-        self.final_path = final_path
-        self.final_path_zip = final_path_zip
+    def __init__(self):
+        self.__path_file = os.path.abspath(__file__)
+        self.final_path = os.path.join(os.path.dirname(self.__path_file),'data\\')
+        self.final_path_zip = os.path.join(os.path.dirname(self.__path_file),'mamitas-thermal-feet.zip')
         self.file_imgs = []
         self.file_masks = []
-        self.__path_file = os.getcwd()
-
-        if mode == 'kaggle' and credential:
-            self.download_by_kaggle(credential, final_path, final_path_zip)
+        
+        self.download_by_kaggle()
 
         for carpet in os.listdir(self.final_path):
             for files in os.listdir(os.path.join(self.final_path, carpet, 'Imágenes')):
@@ -70,16 +67,42 @@ class Mamitas_Thermal_Feet_Dataset():
                 #self.file_masks.append(os.path.join(self.final_path, carpet, 'Máscaras - Manuales', files))
         assert len(self.file_imgs) == len(self.file_masks), 'El número de imágenes y sus máscaras no coinciden.'
 
-    def download_by_kaggle(self, credentials, final_path, final_path_zip):
-      !mkdir ~/.kaggle/
-      !cp credentials ~/.kaggle/kaggle.json
-      !chmod 600 ~/.kaggle/kaggle.json
-      !python -m pip install -qq kaggle
-      !kaggle datasets download -d lucasiturriago/mamitas-thermal-feet
-      ruta_zip = final_path_zip
-      directorio_destino = final_path
-      with zipfile.ZipFile(ruta_zip, 'r') as zip_ref:
-        zip_ref.extractall(directorio_destino)
+    def download_by_kaggle(self):
+      try:
+            # Obtener la ruta completa de las credenciales kaggle.json
+            credential = os.path.join(os.path.dirname(self.__path_file), 'kaggle.json')
+            
+            # Verificar si kaggle.json existe en la ubicación esperada
+            if not os.path.isfile(credential):
+                raise FileNotFoundError(f"No se encontró el archivo kaggle.json en {credential}")
+            
+            # Crear el directorio ~/.kaggle/ si no existe
+            dest_folder = os.path.expanduser('~/.kaggle/')
+            os.makedirs(dest_folder, exist_ok=True)
+            
+            # Copiar kaggle.json a ~/.kaggle/
+            shutil.copy(credential, dest_folder)
+            from kaggle.api.kaggle_api_extended import KaggleApi
+
+            api = KaggleApi()
+            
+            # Autenticar con las credenciales
+            api.authenticate()
+            
+            # Descargar el dataset específico
+            dataset_id = 'lucasiturriago/mamitas-thermal-feet'
+            api.dataset_download_files(dataset_id,path=os.path.join(os.path.dirname(self.__path_file)+ '\\'))
+            
+            # Extraer el contenido del archivo ZIP descargado
+            with zipfile.ZipFile(self.final_path_zip, 'r') as zip_ref:
+                os.makedirs(self.final_path, exist_ok=True)
+                zip_ref.extractall(self.final_path)
+        
+      except FileNotFoundError as e:
+          print(f"Error: {e}")
+        
+      except Exception as e:
+          print(f"Error al cargar las credenciales o descargar el dataset: {e}")
 
     @staticmethod
     def load_instance(root_name_img: str,
@@ -235,3 +258,7 @@ class Mamitas_Thermal_Feet_Dataset():
         return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
       return dataset
+    
+
+if __name__ == "__main__":
+  Mamitas_Thermal_Feet_Dataset()
