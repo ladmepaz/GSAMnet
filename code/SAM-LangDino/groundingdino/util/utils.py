@@ -608,3 +608,12 @@ def get_phrases_from_posmap(
         return tokenizer.decode(token_ids)
     else:
         raise NotImplementedError("posmap must be 1-dim")
+
+def build_model(args):
+    # we use register to maintain models from catdet6 on.
+    from ..models.registry import MODULE_BUILD_FUNCS
+
+    assert args.modelname in MODULE_BUILD_FUNCS._module_dict
+    build_func = MODULE_BUILD_FUNCS.get(args.modelname)
+    model = build_func(args)
+    return model
