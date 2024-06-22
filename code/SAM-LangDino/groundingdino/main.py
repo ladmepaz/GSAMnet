@@ -6,10 +6,16 @@ import urllib.request
 from Segment_Anything.build_sam import sam_model_registry
 from Segment_Anything.predictor import SamPredictor
 from huggingface_hub import hf_hub_download
-from util.utils import SLConfig, build_model, clean_state_dict
+from util.utils import (SLConfig, 
+                        build_model, 
+                        clean_state_dict, 
+                        change_instance_image_dino, 
+                        change_instace_image_sam)
+
 from util.inference import predict, load_image_from_PIL
-from util import box_ops
+from util import box_ops,point_ops
 from torchvision.transforms import transforms
+from typing import Union, Optional
 
 SAM_MODELS = {
     "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
@@ -67,23 +73,15 @@ class SamLangDino():
         self.sam = SamPredictor(sam)
 
     def predict_dino(self, 
-                     image: Image.Image, 
+                     image: Union[Image.Image, 
+                                  torch.Tensor, 
+                                  np.ndarray], 
                      text_prompt: str, 
                      box_threshold: float, 
-                     text_threshold: float):
-        if isinstance(image, Image.Image):
-            image_trans = load_image_from_PIL(image)
-        elif isinstance(image, torch.tensor):
-            image_trans = transforms.ToPILImage()(image)
-            image_trans = load_image_from_PIL(image_trans)
-        elif isinstance(image, np.ndarray):
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.ToPILImage(),
-            ])
-            image_trans = transform(image)
-            image_trans = load_image_from_PIL(image_trans)
-
+                     text_threshold: float) -> torch.Tensor:
+        
+        image_trans = change_instance_image_dino(image)
+        image_array = change_instace_image_sam(image)
         boxes, logits, phrases = predict(model=self.groundingdino,
                                          image=image_trans,
                                          caption=text_prompt,
@@ -91,26 +89,17 @@ class SamLangDino():
                                          text_threshold=text_threshold,
                                          remove_combined=self.return_prompts,
                                          device=self.device)
-        W, H = image_pil.size
+        W, H = image_array.shape[0],image_array.shape[1]
         boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
         return boxes, logits, phrases
-    def predict_sam_boxes(self,
-                          image: torch.tensor,
-                          text_prompt: str,
-                          box_threshold: float,
-                          text_threshold: float):
-        if isinstance(image,torch.tensor):
-            image_array = image.numpy()
-        elif isinstance(image, Image.Image):
-            image_array = np.asarray(image)
-        else:
-            image_array = image
-
-        boxes, logits, phrases = self.predict_dino(image = image_array, 
-                                                   text_prompt=text_prompt,
-                                                   box_threshold=box_threshold,
-                                                   text_threshold=text_threshold)
+    
+    def predict_sam_with_boxes(self,
+                               image: Union[Image.Image, 
+                                            torch.Tensor,
+                                            np.ndarray], 
+                                boxes: torch.Tensor) -> torch.Tensor:
         
+        image_array = change_instace_image_sam(image)
         self.sam.set_image(image_array)
         transformed_boxes = self.sam.transform.apply_boxes_torch(boxes, image_array.shape[:2])
         masks, _, _ = self.sam.predict_torch(
@@ -119,47 +108,66 @@ class SamLangDino():
             boxes=transformed_boxes.to(self.sam.device),
             multimask_output=False,
         )
+        self.sam.reset_image()
         return masks.cpu()
     
-    def predict_sam_points(self,
+    def predict_sam_with_points(self,
                            image,
-                           points_coords: torch.tensor,
-                           points_labels: torch.tensor):
-        if isinstance(image,torch.tensor):
-            image_array = image.numpy()
-        elif isinstance(image, Image.Image):
-            image_array = np.asarray(image)
-        else:
-            image_array = image
-
-                    
-        boxes, logits, phrases = self.predict_dino(image = image_array, 
-                                                   text_prompt=text_prompt,
-                                                   box_threshold=box_threshold,
-                                                   text_threshold=text_threshold)
-        
+                           boxes: Optional[torch.Tensor] = None,
+                           points_coords: Optional[torch.Tensor] = None,
+                           points_labels: Optional[torch.Tensor] = None,
+                           neg_points: Optional[bool] = False) -> torch.Tensor:
+        image_array = change_instace_image_sam(image)
+        W,H = image_array.shape[0],image_array.shape[1]
+        if boxes is not None:
+            boxesxy = box_ops.box_cxcywh_to_xyxy(boxes) * torch.tensor([W,H,W,H])
+            points_coords, points_labels =  point_ops.box_xyxy_to_points(boxesxy, neg_point=neg_points)
 
         self.sam.set_image(image_array)
+        if points_coords is not None or points_labels is not None:
+
+            transformed_points = self.sam.transform.apply_coords_torch(points_coords, image_array.shape[:2])
+            masks, _, _ = self.sam.predict_torch(
+                point_coords=transformed_points.to(self.sam.device),
+                point_labels=points_labels.to(self.sam.device),
+                boxes=None,
+                multimask_output=False,
+            )
+        else:
+            raise ValueError("points_coords and points_labels must be different to None if boxes is None")
+        
+        self.sam.reset_image()
+        return masks.cpu()
+    def predict_sam_with_boxes_points(self,
+                                 image: Union[Image.Image, torch.Tensor],
+                                 boxes: Optional[torch.Tensor] = None,
+                                 points_coords: Optional[torch.Tensor] = None,
+                                 points_labels: Optional[torch.Tensor] = None,
+                                 neg_points: Optional[bool] = False) -> torch.Tensor:
+        if boxes is None:
+            raise ValueError("Boxes must be provided")
+        
+        if (points_coords is not None or points_labels is not None) and (points_coords is None or points_labels is None):
+            raise ValueError("If points_coords or points_labels are provided, both must be provided")
+        
+        image_array = change_instace_image_sam(image)
+        H, W = image_array.shape[:2]
+        
+        if points_coords is None and points_labels is None:
+            boxesxy = box_ops.box_cxcywh_to_xyxy(boxes) * torch.tensor([W, H, W, H])
+            points_coords, points_labels = point_ops.box_xyxy_to_points(boxesxy, neg_point=neg_points)
+        
+        self.sam.set_image(image_array)
         transformed_points = self.sam.transform.apply_coords_torch(points_coords, image_array.shape[:2])
+        transformed_boxes = self.sam.transform.apply_boxes_torch(boxes, image_array.shape[:2])
+
         masks, _, _ = self.sam.predict_torch(
-            point_coords=transformed_points,
-            point_labels=points_labels,
-            boxes=None,
+            point_coords=transformed_points.to(self.sam.device),
+            point_labels=points_labels.to(self.sam.device),
+            boxes=transformed_boxes.to(self.sam.device),
             multimask_output=False,
         )
+        self.sam.reset_image()
         return masks.cpu()
-    def predict_sam_boxes_points(self,
-                                 img,
-                                 boxes: torch.tensor,
-                                 point_coords: torch.tensor,
-                                 points_labels: torch.tensor):
-
-        
-            
-        boxes, logits, phrases = self.predict_dino(image = image_array, 
-                                                   text_prompt=text_prompt,
-                                                   box_threshold=box_threshold,
-                                                   text_threshold=text_threshold)
-        
 
         
