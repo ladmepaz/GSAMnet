@@ -14,8 +14,9 @@ from .util.utils import (SLConfig,
                         clean_state_dict)
 
 from .util.inference import (predict,
-                            load_trans_image, 
-                            change_image_instance)
+                             load_model,
+                             load_trans_image, 
+                             change_image_instance)
 from .util import box_ops,point_ops
 SAM_MODELS = {
     "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
@@ -31,43 +32,36 @@ SAM_NAMES = {
 
 
 class SamLangDino():
-    def __init__(self,):
+    def __init__(self,SAM:str):
         self.__file_path = os.path.dirname(os.path.abspath(__file__))
         self.weights_path = os.path.join(self.__file_path,"weights")
         self.default_sam = "vit_h"
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.Build_GroundingDINO()
+        self.Build_Sam(SAM=SAM)
 
     def Build_GroundingDINO(self,):
 
         repo_id = "ShilongLiu/GroundingDINO"
-        filename = "groundingdino_swinb_cogcoor.pth"
-        pth_config = "GroundingDINO_SwinB.cfg.py"
-        cache_config_file = hf_hub_download(repo_id=repo_id, filename=pth_config)
-        args = SLConfig.fromfile(cache_config_file)
-        model = build_model(args)
-        args.device = self.device
-
-        cache_file = hf_hub_download(repo_id=repo_id, filename=filename)
-        checkpoint = torch.load(cache_file, map_location='cpu')
-        log = model.load_state_dict(clean_state_dict(checkpoint['model']), strict=False)
-        print(f"Model loaded from {cache_file} \n => {log}")
-        model.eval()
-
-        self.groundingdino = model
+        filename = "groundingdino_swint_ogc.pth"
+        cache_config = "GroundingDINO_SwinT_OGC.cfg.py"
+        cache_config_file = hf_hub_download(repo_id=repo_id, filename=cache_config)
+        pth_file = hf_hub_download(repo_id=repo_id, filename=filename)
+        self.groundingdino = load_model(cache_config_file,pth_file, device=self.device)
     
     def Build_Sam(self,
                   SAM:str,):
         os.makedirs(self.weights_path,exist_ok=True)
-        if SAM not in SAM_NAMES.keys:
+        if SAM not in SAM_NAMES:
             print(f"Modelo de SAM no reconocible, utilizando por defecto <{self.default_sam}>") 
             SAM = self.default_sam
-        checkpoint_url = SAM_MODELS[self.sam_type]
+        checkpoint_url = SAM_MODELS[SAM]
         try:
-            sam = sam_model_registry[self.sam_type]()
+            sam = sam_model_registry[SAM]()
             state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
             sam.load_state_dict(state_dict, strict=True)
         except:
-            raise ValueError(f"Problemas al descargar sam, asegurese que el modo es correcto: {self.sam_type} \
+            raise ValueError(f"Problemas al descargar sam, asegurese que el modo es correcto: {SAM} \
                     y funcione el checkpoint: {checkpoint_url}.")
         sam.to(device=self.device)
         self.sam = SamPredictor(sam)
@@ -87,9 +81,8 @@ class SamLangDino():
                                          caption=text_prompt,
                                          box_threshold=box_threshold,
                                          text_threshold=text_threshold,
-                                         remove_combined=self.return_prompts,
                                          device=self.device)
-        W, H = image_array.shape[0],image_array.shape[1]
+        W, H = image_array.shape[:2]
         boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
         return boxes, logits, phrases
     
