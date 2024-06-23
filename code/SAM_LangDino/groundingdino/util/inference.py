@@ -60,7 +60,8 @@ def load_image_from_PIL(img):
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
-    return transform(img)
+    image, _ = transform(img,None)
+    return image
 
 def predict(
         model,
@@ -287,11 +288,9 @@ def load_trans_image(image: Union[Image.Image,torch.Tensor,np.ndarray]) -> torch
     if isinstance(image, Image.Image):
         image_trans = load_image_from_PIL(image)
     elif isinstance(image, torch.Tensor):
-        if image.shape[0] == 3:
-            image_trans = transforms.ToPILImage()(image)
-        else: 
-            image = image.permute(2,0,1)
-            image_trans = transforms.ToPILImage()(image)
+        if image.shape[0] != 3:
+            image = image.permute((2,0,1))
+        image_trans = transforms.ToPILImage()(image)
         image_trans = load_image_from_PIL(image_trans)
     elif isinstance(image, np.ndarray):
         if image.shape[0] == 3:        
@@ -311,9 +310,13 @@ def load_trans_image(image: Union[Image.Image,torch.Tensor,np.ndarray]) -> torch
 
 def change_image_instance(image: Union[Image.Image,torch.Tensor]) -> torch.Tensor:
     if isinstance(image,torch.Tensor):
+        if image.shape[0] == 3:
+            image = image.permute((1,2,0))
         image_array = image.numpy()
     elif isinstance(image, Image.Image):
         image_array = np.asarray(image)
     else:
+        if image.shape[0] == 3:
+            image = np.transpose(image,(1,2,0))
         image_array = image
     return image_array
