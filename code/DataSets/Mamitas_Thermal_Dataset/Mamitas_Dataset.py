@@ -27,21 +27,30 @@ class ToFloatTensor(transforms.ToTensor):
         return tensor.float()
 
 class Mamitas_Create_Dataset(Dataset):
-    def __init__(self, file_images, file_masks,transform_mask,transform_img):
+    def __init__(self, 
+                 file_images: list, 
+                 file_masks: list,
+                 merge_image: bool,
+                 transform_mask: transforms.Compose,
+                 transform_img: transforms.Compose):
+        
         self.file_images = file_images
         self.file_masks = file_masks
         self.transform_mask = transform_mask
         self.transform_img = transform_img
+        self.merge_image = merge_image
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.file_images)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, 
+                    idx: int) -> Tuple[torch.Tensor,torch.Tensor,str]:
         root_name_img = self.file_images[idx]
         root_name_mask = self.file_masks[idx]
 
         img, mask, id_image = Mamitas_Thermal_Feet_Dataset.load_instance(root_name_img,
                                                                          root_name_mask,
+                                                                         self.merge_image,
                                                                          self.transform_mask,
                                                                          self.transform_img)
 
@@ -69,31 +78,17 @@ class Mamitas_Thermal_Feet_Dataset():
 
     def download_by_kaggle(self):
       try:
-            # Obtener la ruta completa de las credenciales kaggle.json
             credential = os.path.join(os.path.dirname(self.__path_file), 'kaggle.json')
-            
-            # Verificar si kaggle.json existe en la ubicación esperada
             if not os.path.isfile(credential):
                 raise FileNotFoundError(f"No se encontró el archivo kaggle.json en {credential}")
-            
-            # Crear el directorio ~/.kaggle/ si no existe
             dest_folder = os.path.expanduser('~/.kaggle/')
             os.makedirs(dest_folder, exist_ok=True)
-            
-            # Copiar kaggle.json a ~/.kaggle/
             shutil.copy(credential, dest_folder)
             from kaggle.api.kaggle_api_extended import KaggleApi
-
             api = KaggleApi()
-            
-            # Autenticar con las credenciales
             api.authenticate()
-            
-            # Descargar el dataset específico
             dataset_id = 'lucasiturriago/mamitas-thermal-feet'
             api.dataset_download_files(dataset_id,path=os.path.join(os.path.dirname(self.__path_file)+ '\\'))
-            
-            # Extraer el contenido del archivo ZIP descargado
             with zipfile.ZipFile(self.final_path_zip, 'r') as zip_ref:
                 os.makedirs(self.final_path, exist_ok=True)
                 zip_ref.extractall(self.final_path)
@@ -107,8 +102,9 @@ class Mamitas_Thermal_Feet_Dataset():
     @staticmethod
     def load_instance(root_name_img: str,
                       root_name_mask: str,
-                      transform_mask,
-                      transform_img):
+                      merge_image: bool,
+                      transform_mask: transforms.Compose,
+                      transform_img: transforms.Compose) -> Tuple[torch.Tensor,torch.Tensor,str]:
         """
         Load an instance from the dataset
 
@@ -123,6 +119,8 @@ class Mamitas_Thermal_Feet_Dataset():
 
         img = Image.open(root_name_img).convert('L')
         mask = Image.open(root_name_mask).convert('L')
+        if merge_image:
+           img = Image.merge('RGB',(img,img,img))
         if transform_mask is not None:
           mask = Mamitas_Thermal_Feet_Dataset.__preprocessing_mask(mask,transform_mask)
         if transform_img is not None:
@@ -131,8 +129,8 @@ class Mamitas_Thermal_Feet_Dataset():
         return img, mask, id_image
 
     @staticmethod
-    def __preprocessing_mask(mask,
-                             transforms):
+    def __preprocessing_mask(mask: Image.Image,
+                             transforms: transforms.Compose) -> torch.Tensor:
         """
         Transforms a PIL Image
 
@@ -149,8 +147,8 @@ class Mamitas_Thermal_Feet_Dataset():
         return mask
 
     @staticmethod
-    def __preprocessing_img(img,
-                            transforms):
+    def __preprocessing_img(img: Image.Image,
+                            transforms: transforms.Compose) -> torch.Tensor:
       """
       Transforms a PIL Image
 
@@ -167,7 +165,7 @@ class Mamitas_Thermal_Feet_Dataset():
       return img
 
     @staticmethod
-    def extract_id(path: str):
+    def extract_id(path: str) -> str:
       """
       Extract de id for image file
 
@@ -188,6 +186,7 @@ class Mamitas_Thermal_Feet_Dataset():
     def generate_dataset_with_val(self,
                                   transform_mask: transforms.Compose,
                                   transform_img: transforms.Compose,
+                                  merge_image: bool = True,
                                   torch_dataset: bool = False,
                                   batch_size: Optional[int] = 32,
                                   shuffle: Optional[bool] = True,
@@ -216,11 +215,13 @@ class Mamitas_Thermal_Feet_Dataset():
       print(f"Val_dataset: {len(val_imgs)}")
       train_dataset = Mamitas_Create_Dataset(train_imgs,
                                              train_masks,
+                                             merge_image,
                                              transform_mask,
                                              transform_img)
 
       val_dataset = Mamitas_Create_Dataset(val_imgs,
                                            val_masks,
+                                           merge_image,
                                            transform_mask,
                                            transform_img)
 
@@ -231,11 +232,12 @@ class Mamitas_Thermal_Feet_Dataset():
       return train_dataset, val_dataset
 
     def generate_dataset(self,
-                         transform_mask,
-                         transform_img,
+                         transform_mask:transforms.Compose,
+                         transform_img:transforms.Compose,
+                         merge_image: bool = True,
                          torch_dataset: Optional[bool]= False,
                          batch_size: Optional[int] = 32,
-                         shuffle: Optional[bool] = True):
+                         shuffle: Optional[bool] = True) -> Union[Dataset, DataLoader]:
       """
       Generate a dataset
 
@@ -250,6 +252,7 @@ class Mamitas_Thermal_Feet_Dataset():
 
       dataset = Mamitas_Create_Dataset(self.file_imgs,
                                        self.file_masks,
+                                       merge_image,
                                        transform_mask,
                                        transform_img)
 
