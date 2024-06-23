@@ -6,7 +6,7 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import shutil
-from typing import Optional
+from typing import Optional, Union, Tuple
 
 class PermuteTensor():
     def __init__(self, dim):
@@ -186,13 +186,13 @@ class Mamitas_Thermal_Feet_Dataset():
         return self
 
     def generate_dataset_with_val(self,
-                                  transform_mask,
-                                  transform_img,
-                                  torch_dataset: Optional[bool] = False,
+                                  transform_mask: transforms.Compose,
+                                  transform_img: transforms.Compose,
+                                  torch_dataset: bool = False,
                                   batch_size: Optional[int] = 32,
                                   shuffle: Optional[bool] = True,
                                   split_val: float=0.2,
-                                  seed:int = 42):
+                                  seed:int = 42) -> Union[Tuple[DataLoader,DataLoader],Tuple[Dataset,Dataset]]:
       """
       Generate a dataset with validation split
 

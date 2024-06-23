@@ -22,9 +22,12 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops.boxes import nms
 from transformers import AutoTokenizer, BertModel, BertTokenizer, RobertaModel, RobertaTokenizerFast
-
-from groundingdino.util import box_ops, get_tokenlizer
-from groundingdino.util.misc import (
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(1, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SAM_LangDino', 'groundingdino'))
+from util import box_ops, get_tokenlizer
+from util.misc import (
     NestedTensor,
     accuracy,
     get_world_size,
@@ -33,9 +36,7 @@ from groundingdino.util.misc import (
     is_dist_avail_and_initialized,
     nested_tensor_from_tensor_list,
 )
-from groundingdino.util.utils import get_phrases_from_posmap
-from groundingdino.util.visualizer import COCOVisualizer
-from groundingdino.util.vl_utils import create_positive_map_from_span
+
 
 from ..registry import MODULE_BUILD_FUNCS
 from .backbone import build_backbone

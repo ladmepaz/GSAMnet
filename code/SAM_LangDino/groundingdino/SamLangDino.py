@@ -2,21 +2,21 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-import urllib.request
-from Segment_Anything.build_sam import sam_model_registry
-from Segment_Anything.predictor import SamPredictor
 from huggingface_hub import hf_hub_download
-from util.utils import (SLConfig, 
-                        build_model, 
-                        clean_state_dict, 
-                        change_instance_image_dino, 
-                        change_instace_image_sam)
-
-from util.inference import predict, load_image_from_PIL
-from util import box_ops,point_ops
-from torchvision.transforms import transforms
 from typing import Union, Optional
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from segment_anything.build_sam import sam_model_registry
+from segment_anything.predictor import SamPredictor
+#from Segment_Anything.predictor import SamPredictor
+from .util.utils import (SLConfig, 
+                        build_model, 
+                        clean_state_dict)
 
+from .util.inference import (predict,
+                            load_trans_image, 
+                            change_image_instance)
+from .util import box_ops,point_ops
 SAM_MODELS = {
     "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
     "vit_l": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
@@ -80,8 +80,8 @@ class SamLangDino():
                      box_threshold: float, 
                      text_threshold: float) -> torch.Tensor:
         
-        image_trans = change_instance_image_dino(image)
-        image_array = change_instace_image_sam(image)
+        image_trans = load_trans_image(image)
+        image_array = change_image_instance(image)
         boxes, logits, phrases = predict(model=self.groundingdino,
                                          image=image_trans,
                                          caption=text_prompt,
@@ -99,7 +99,7 @@ class SamLangDino():
                                             np.ndarray], 
                                 boxes: torch.Tensor) -> torch.Tensor:
         
-        image_array = change_instace_image_sam(image)
+        image_array = change_image_instance(image)
         self.sam.set_image(image_array)
         transformed_boxes = self.sam.transform.apply_boxes_torch(boxes, image_array.shape[:2])
         masks, _, _ = self.sam.predict_torch(
@@ -117,8 +117,8 @@ class SamLangDino():
                            points_coords: Optional[torch.Tensor] = None,
                            points_labels: Optional[torch.Tensor] = None,
                            neg_points: Optional[bool] = False) -> torch.Tensor:
-        image_array = change_instace_image_sam(image)
-        W,H = image_array.shape[0],image_array.shape[1]
+        image_array = change_image_instance(image)
+        W,H = image_array.shape[:2]
         if boxes is not None:
             boxesxy = box_ops.box_cxcywh_to_xyxy(boxes) * torch.tensor([W,H,W,H])
             points_coords, points_labels =  point_ops.box_xyxy_to_points(boxesxy, neg_point=neg_points)
@@ -150,7 +150,7 @@ class SamLangDino():
         if (points_coords is not None or points_labels is not None) and (points_coords is None or points_labels is None):
             raise ValueError("If points_coords or points_labels are provided, both must be provided")
         
-        image_array = change_instace_image_sam(image)
+        image_array = change_image_instance(image)
         H, W = image_array.shape[:2]
         
         if points_coords is None and points_labels is None:
@@ -171,3 +171,5 @@ class SamLangDino():
         return masks.cpu()
 
         
+if __name__ == "__main__":
+    print(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))

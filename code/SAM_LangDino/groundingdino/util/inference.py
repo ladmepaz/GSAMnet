@@ -1,18 +1,22 @@
 from typing import Tuple, List
-
 import cv2
 import numpy as np
 import supervision as sv
 import torch
 from PIL import Image
 from torchvision.ops import box_convert
+from torchvision.transforms import transforms
 import bisect
-
-import groundingdino.datasets.transforms as T
-from groundingdino.models import build_model
-from groundingdino.util.misc import clean_state_dict
-from groundingdino.util.slconfig import SLConfig
-from groundingdino.util.utils import get_phrases_from_posmap
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from groundingdino.datasets import transforms as T
+from groundingdino.models.GroundingDINO.groundingdino import build_groundingdino as build_model
+from .misc import clean_state_dict
+from .slconfig import SLConfig
+from .utils import get_phrases_from_posmap
+from typing import Union
+from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
 
 # ----------------------------------------------------------------------------------------------------------------------
 # OLD API
@@ -277,3 +281,39 @@ class Model:
             else:
                 class_ids.append(None)
         return np.array(class_ids)
+
+
+def load_trans_image(image: Union[Image.Image,torch.Tensor,np.ndarray]) -> torch.Tensor:
+    if isinstance(image, Image.Image):
+        image_trans = load_image_from_PIL(image)
+    elif isinstance(image, torch.Tensor):
+        if image.shape[0] == 3:
+            image_trans = transforms.ToPILImage()(image)
+        else: 
+            image = image.permute(2,0,1)
+            image_trans = transforms.ToPILImage()(image)
+        image_trans = load_image_from_PIL(image_trans)
+    elif isinstance(image, np.ndarray):
+        if image.shape[0] == 3:        
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.ToPILImage(),
+            ])
+        else:
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                PermuteTensor((2,0,1)),
+                transforms.ToPILImage(),
+            ])  
+        image_trans = transform(image)
+        image_trans = load_image_from_PIL(image_trans)
+    return image_trans
+
+def change_image_instance(image: Union[Image.Image,torch.Tensor]) -> torch.Tensor:
+    if isinstance(image,torch.Tensor):
+        image_array = image.numpy()
+    elif isinstance(image, Image.Image):
+        image_array = np.asarray(image)
+    else:
+        image_array = image
+    return image_array

@@ -3,15 +3,11 @@ import json
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
-from typing import Any, Dict, List, Union
-from PIL import Image
+from typing import Any, Dict, List
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-from torchvision.transforms import transforms
-from inference import load_image_from_PIL
-from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
-from groundingdino.util.slconfig import SLConfig
+from .slconfig import SLConfig
 
 
 def slprint(x, name="x"):
@@ -619,39 +615,3 @@ def build_model(args):
     build_func = MODULE_BUILD_FUNCS.get(args.modelname)
     model = build_func(args)
     return model
-
-
-def change_instance_image_dino(image: Union[Image.Image,torch.Tensor,np.ndarray]) -> torch.Tensor:
-    if isinstance(image, Image.Image):
-        image_trans = load_image_from_PIL(image)
-    elif isinstance(image, torch.Tensor):
-        if image.shape[0] == 3:
-            image_trans = transforms.ToPILImage()(image)
-        else: 
-            image = image.permute(2,0,1)
-            image_trans = transforms.ToPILImage()(image)
-        image_trans = load_image_from_PIL(image_trans)
-    elif isinstance(image, np.ndarray):
-        if image.shape[0] == 3:        
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.ToPILImage(),
-            ])
-        else:
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                PermuteTensor((2,0,1)),
-                transforms.ToPILImage(),
-            ])  
-        image_trans = transform(image)
-        image_trans = load_image_from_PIL(image_trans)
-    return image_trans
-
-def change_instace_image_sam(image: Union[Image.Image,torch.Tensor]) -> torch.Tensor:
-    if isinstance(image,torch.Tensor):
-        image_array = image.numpy()
-    elif isinstance(image, Image.Image):
-        image_array = np.asarray(image)
-    else:
-        image_array = image
-    return image_array
