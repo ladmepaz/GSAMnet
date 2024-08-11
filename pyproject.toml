@@ -1,0 +1,10 @@
+[build-system]
+requires = [
+    "setuptools>=71.0",  
+    "wheel",
+    "torch",
+    ]
+build-backend = "setuptools.build_meta"
+
+[tool.poetry.scripts]
+post_install = "scripts.install_deps:main"

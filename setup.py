@@ -1,8 +1,18 @@
 import os
 import glob
 import torch
+from setuptools.command.install import install
 from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension,BuildExtension
 from setuptools import setup, find_packages
+import sys
+
+class CustomInstallCommand(install):
+    """Comando personalizado para instalar dependencias adicionales."""
+    def run(self):
+        # Instalar las dependencias estándar
+        install.run(self)
+        # Instalar dependencias adicionales con un índice específico
+        os.system("pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121")
 
 def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +36,7 @@ def get_extensions():
         print("Compiling with CUDA")
         extension = CUDAExtension
         sources += source_cuda
+
         define_macros += [("WITH_CUDA", None)]
         extra_compile_args["nvcc"] = [
             "-DCUDA_HAS_FP16=1",
@@ -33,6 +44,7 @@ def get_extensions():
             "-D__CUDA_NO_HALF_CONVERSIONS__",
             "-D__CUDA_NO_HALF2_OPERATORS__",
         ]
+
     else:
         print("Compiling without CUDA")
         define_macros += [("WITH_HIP", None)]
@@ -41,6 +53,7 @@ def get_extensions():
 
     sources = [os.path.join(extensions_dir, s) for s in sources]
     include_dirs = [extensions_dir]
+
 
     ext_modules = [
         extension(
@@ -138,9 +151,10 @@ def build_extensions():
         name="groundingdino",
         package_dir={"": "src"},
         packages=find_packages(where="src"),
-        install_requires=parse_requirements("requirements.txt"),
+        #install_requires=parse_requirements("requirements.txt"),
         ext_modules=get_extensions(),
-        cmdclass={"build_ext": BuildExtension},
+        cmdclass={"build_ext": BuildExtension,
+                  "install": CustomInstallCommand},
     )
 
 if __name__ == "__main__":
