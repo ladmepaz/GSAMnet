@@ -151,7 +151,7 @@ def build_extensions():
         name="groundingdino",
         package_dir={"": "src"},
         packages=find_packages(where="src"),
-        #install_requires=parse_requirements("requirements.txt"),
+        install_requires=parse_requirements("requirements.txt"),
         ext_modules=get_extensions(),
         cmdclass={"build_ext": BuildExtension,
                   "install": CustomInstallCommand},
