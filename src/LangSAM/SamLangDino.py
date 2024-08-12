@@ -7,11 +7,11 @@ from huggingface_hub import hf_hub_download
 from typing import Union, Optional
 
 #sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from ..segment_anything.build_sam import sam_model_registry
-from ..segment_anything.predictor import SamPredictor
-from ..groundingdino.util.inference import (predict,
+from segment_anything.build_sam import sam_model_registry
+from segment_anything.predictor import SamPredictor
+from groundingdino.util.inference import (predict,
                              load_model)
-from ..groundingdino.util import box_ops
+from groundingdino.util import box_ops
 
 from .utils import load_trans_image, change_image_instance, process_box_batch
 SAM_MODELS = {

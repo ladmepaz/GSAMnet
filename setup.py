@@ -1,5 +1,7 @@
 import os
 import glob
+import os
+os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
 import torch
 from setuptools.command.install import install
 from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension,BuildExtension
@@ -21,9 +23,9 @@ def get_extensions():
 
 
     main_source = os.path.join(extensions_dir, "vision.cpp")
-    sources = glob.glob(os.path.join(extensions_dir2, "*.cpp"))
+    sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"))
     source_cuda = glob.glob(os.path.join(extensions_dir, "**", "*.cu")) + glob.glob(
-        os.path.join(extensions_dir2, "*.cu")
+        os.path.join(extensions_dir, "*.cu")
     )
     sources = [main_source] + sources
 
@@ -43,6 +45,7 @@ def get_extensions():
             "-D__CUDA_NO_HALF_OPERATORS__",
             "-D__CUDA_NO_HALF_CONVERSIONS__",
             "-D__CUDA_NO_HALF2_OPERATORS__",
+            "-allow-unsupported-compiler"
         ]
 
     else:

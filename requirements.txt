@@ -1,6 +1,4 @@
-torch
-torchvision
-numpy>=1.26.0
+numpy==1.26.4
 transformers==4.42.4
 addict==2.4.0
 huggingface_hub==0.23.5
@@ -9,3 +7,4 @@ pycocotools
 yapf
 timm
 supervision==0.22.0
+scikit-learn
