@@ -1,11 +1,11 @@
 from typing import Union
 from PIL import Image
-from groundingdino.util.inference import load_image
+from ..groundingdino.util.inference import load_image
 from torchvision.transforms import transforms
-from groundingdino.datasets import transforms as T
+from ..groundingdino.datasets import transforms as T
 import numpy as np
 import torch
-from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
+from ..DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
 
 def load_image_from_PIL(img):
     transform = T.Compose([

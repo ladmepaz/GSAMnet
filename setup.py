@@ -54,7 +54,6 @@ def get_extensions():
     sources = [os.path.join(extensions_dir, s) for s in sources]
     include_dirs = [extensions_dir]
 
-
     ext_modules = [
         extension(
             "groundingdino._C",
@@ -153,8 +152,7 @@ def build_extensions():
         packages=find_packages(where="src"),
         install_requires=parse_requirements("requirements.txt"),
         ext_modules=get_extensions(),
-        cmdclass={"build_ext": BuildExtension,
-                  "install": CustomInstallCommand},
+        cmdclass={"build_ext": BuildExtension},
     )
 
 if __name__ == "__main__":
