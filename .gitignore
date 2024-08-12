@@ -162,7 +162,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-code/DataSets/Mamitas_Thermal_Dataset/kaggle.json
-code/DataSets/Mamitas_Thermal_Dataset/pruebas.py
-code/DataSets/Mamitas_Thermal_Dataset/data/
-code/DataSets/Mamitas_Thermal_Dataset/mamitas-thermal-feet.zip
+#src/DataSets/Mamitas_Thermal_Dataset/kaggle.json
+src/DataSets/Mamitas_Thermal_Dataset/pruebas.py
+src/DataSets/Mamitas_Thermal_Dataset/data/
+src/DataSets/Mamitas_Thermal_Dataset/mamitas-thermal-feet.zip
