@@ -1,12 +1,11 @@
-from typing import Union, Tuple, List
-from PIL import Image
-from groundingdino.util.inference import load_image
-from torchvision.transforms import transforms
-from groundingdino.datasets import transforms as T
 import numpy as np
 import torch
-from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
+from PIL import Image
+from typing import Union, Tuple, List
+from torchvision.transforms import transforms
+from groundingdino.datasets import transforms as T
 from groundingdino.util.box_ops import box_cxcywh_to_xyxy, box_iou
+from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
 
 def load_image_from_PIL(img:Image.Image) -> torch.Tensor:
     """

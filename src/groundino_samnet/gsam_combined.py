@@ -1,19 +1,15 @@
-import sys
 import os
 import torch
 import numpy as np
 from PIL import Image
+from typing import List, Union, Tuple, Optional
 from huggingface_hub import hf_hub_download
-from typing import List,Union, Tuple,Optional
 from segment_anything1.build_sam import sam_model_registry
 from segment_anything1.predictor import SamPredictor
-from segment_anything1.config import (SAM1_MODELS,
-                                     SAM_NAMES_MODELS)
+from segment_anything1.config import SAM1_MODELS, SAM_NAMES_MODELS
 from segment_anything2.sam2_configs.config import SAM2_MODELS
-from groundingdino.util.inference import (predict,
-                             load_model)
 from groundingdino.util import box_ops
-from groundino_samnet.utils import PostProcessor
+from groundingdino.util.inference import predict, load_model
 
 class GSamNetwork():
     def __init__(self,SAM: str,SAM_MODEL:Optional[str] = None):
@@ -22,12 +18,12 @@ class GSamNetwork():
         if SAM not in SAM_NAMES_MODELS:
             raise ValueError(f"The specified SAM model '{SAM}' does not exist. Please select a valid model from the following options: {SAM_NAMES_MODELS}.")
         if not isinstance(SAM_MODEL,str):
-            raise TypeError(f"The SAM model should be a single value, not a list or collection. Please provide one of the following valid model names: {list(SAM1_MODELS.keys()) + list(SAM2_MODELS.keys()) + list("None")}.")
+            raise TypeError(f"The SAM model should be a single value, not a list or collection. Please provide one of the following valid model names: {list(SAM1_MODELS.keys()) + list(SAM2_MODELS.keys()) + [None]}.")
         self.__file_path = os.path.dirname(os.path.abspath(__file__))
         self.weights_path = os.path.join(self.__file_path, "weights")
         self.default_sam1 = "vit_h"
         self.default_sam2 = "large"
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         print("Notice: Loading GroundDINO model")
         self.__Build_GroundingDINO()
@@ -143,8 +139,8 @@ class GSamNetwork():
                 torch.Tensor: The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
         shape =  image_array.shape[:2]
-        image_trans = load_trans_image(image)
-        image_array = change_image_instance(image)
+        image_trans = load_image(image)
+        image_array = convert_image_to_numpy(image)
         boxes, logits, phrases = predict(model=self.groundingdino,
                                          image=image_trans,
                                          caption=text_prompt,
@@ -207,7 +203,7 @@ class GSamNetwork():
             Returns
                 torch.Tensor: The predicted segmentation mask with (WxHx1) shape.
     """
-        image_array = change_image_instance(image)
+        image_array = convert_image_to_numpy(image)
         transformed_boxes,transformed_points,points_labels = self.__prep_prompts(boxes,
                                                                                  points_coords,
                                                                                  points_labels,
@@ -286,9 +282,6 @@ class GSamNetwork():
     def reset_model_SAM1(self):
         self.SAM1.reset_image()
 
-    @property
-    def device(self):
-        return self.device
     
     def __prep_prompts(self,boxes,points_coords,points_labels,dims):
         W,H = dims
@@ -315,7 +308,7 @@ class GSamNetwork():
         
         
 if __name__ == "__main__":
-    from groundino_samnet.utils import load_trans_image, change_image_instance, process_box_batch, process_masks
-    SAM1 = GSamNetwork(SAM="SAM1",SAM_MODEL="sa")
+    from groundino_samnet.utils import PostProcessor, load_image, convert_image_to_numpy
+    SAM1 = GSamNetwork(SAM="SAM2",SAM_MODEL="sa")
 else:
-    from .utils import load_trans_image, change_image_instance, process_box_batch, process_masks
+    from .utils import PostProcessor, load_image, convert_image_to_numpy
