@@ -6,8 +6,8 @@ __pycache__/
 
 # C extensions
 *.so
-src/DataSets/Mamitas_Thermal_Dataset/kaggle.json
-src/DataSets/Mamitas_Thermal_Dataset/data/
+kaggle.json
+data/
 src/DataSets/Mamitas_Thermal_Dataset/mamitas-thermal-feet.zip
 pruebas.py
 main.ipynb

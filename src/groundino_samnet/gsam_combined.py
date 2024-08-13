@@ -5,30 +5,31 @@ import numpy as np
 from PIL import Image
 from huggingface_hub import hf_hub_download
 from typing import List,Union, Tuple,Optional
-
-from segment_anything.build_sam import sam_model_registry
-from segment_anything.predictor import SamPredictor
-from segment_anything.config import (SAM1_MODELS,
+from segment_anything1.build_sam import sam_model_registry
+from segment_anything1.predictor import SamPredictor
+from segment_anything1.config import (SAM1_MODELS,
                                      SAM_NAMES_MODELS)
+from segment_anything2.sam2_configs.config import SAM2_MODELS
 from groundingdino.util.inference import (predict,
                              load_model)
 from groundingdino.util import box_ops
+from groundino_samnet.utils import PostProcessor
 
 class GSamNetwork():
-    def __init__(self,SAM:str,SAM_MODEL:Optional[str]):
-
+    def __init__(self,SAM: str,SAM_MODEL:Optional[str] = None):
         if not isinstance(SAM, str):
-            raise TypeError(f"The SAM model should be a single value, not a list or collection. Please provide one of the following valid model names: {SAM_NAMES_MODELS}.")
+            raise TypeError(f"The SAM parameter should be a single value, not a list or collection. Please provide one of the following valid model names: {SAM_NAMES_MODELS + [None]}.")
         if SAM not in SAM_NAMES_MODELS:
             raise ValueError(f"The specified SAM model '{SAM}' does not exist. Please select a valid model from the following options: {SAM_NAMES_MODELS}.")
-        
+        if not isinstance(SAM_MODEL,str):
+            raise TypeError(f"The SAM model should be a single value, not a list or collection. Please provide one of the following valid model names: {list(SAM1_MODELS.keys()) + list(SAM2_MODELS.keys()) + list("None")}.")
         self.__file_path = os.path.dirname(os.path.abspath(__file__))
         self.weights_path = os.path.join(self.__file_path, "weights")
         self.default_sam1 = "vit_h"
         self.default_sam2 = "large"
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        print("Loading GroundDINO model")
+        print("Notice: Loading GroundDINO model")
         self.__Build_GroundingDINO()
 
         if SAM == "SAM1":
@@ -77,7 +78,7 @@ class GSamNetwork():
             cache_config_file = hf_hub_download(repo_id=repo_id, filename=cache_config)
             pth_file = hf_hub_download(repo_id=repo_id, filename=filename)
         except:
-            raise RuntimeError(f"Error downloading GroundingDINO model. Please ensure that the {repo_id}/{cache_config} file exists and the {filename} checkpoint is functional.")
+            raise RuntimeError(f"Error downloading GroundingDINO model. Please ensure that the {repo_id}/{cache_config} file exists in huggingface_hub and the {filename} checkpoint is functional.")
         
         try:
             self.groundingdino = load_model(cache_config_file,pth_file, device=self.device)
@@ -99,7 +100,7 @@ class GSamNetwork():
             sam = sam_model_registry[SAM]()
             state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
         except Exception as e:
-            raise RuntimeError(f"Error downloading SAM. Please ensure the model is correct: {SAM} and that the checkpoint is functional: {checkpoint_url}.")
+            raise RuntimeError(f"Error downloading SAM1. Please ensure the model is correct: {SAM} and that the checkpoint is functional: {checkpoint_url}.")
         try:
             sam.load_state_dict(state_dict, strict=True)
             sam.to(device=self.device)
@@ -141,6 +142,7 @@ class GSamNetwork():
             Returns:
                 torch.Tensor: The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
+        shape =  image_array.shape[:2]
         image_trans = load_trans_image(image)
         image_array = change_image_instance(image)
         boxes, logits, phrases = predict(model=self.groundingdino,
@@ -150,10 +152,10 @@ class GSamNetwork():
                                          text_threshold=text_threshold,
                                          device=self.device)
         if Normalize:
-            W, H = image_array.shape[:2]
+            W,H = shape
             boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
 
-        boxes,logits,phrases = postprocess_box(boxes,logits,phrases)
+        boxes,logits,phrases = PostProcessor(image_shape=shape,box_threshold=0.1,mode="single").postprocess_box(boxes,logits,phrases)
         return boxes, logits, phrases
     
     def predict_dino_batch(self,
@@ -180,9 +182,11 @@ class GSamNetwork():
                                                            box_threshold=box_threshold,
                                                            text_threshold=text_threshold,
                                                            Normalize=Normalize), images))
-    
         boxes, logits, phrases = zip(*results)
-        return list(boxes), list(logits), list(phrases)
+        boxes = list(boxes)
+        logits = list(logits)
+        phrases = list(phrases)
+        return boxes, logits, phrases
     
     def predict_SAM1(self,
                     image: Union[Image.Image, 
@@ -210,11 +214,10 @@ class GSamNetwork():
                                                                                  image_array.shape[:2])
 
         self.SAM1.set_image(image_array)
-        masks, _, _ = self.SAM1.predict_torch(point_coords=transformed_points.to(self.SAM1.device),
-                                              point_labels=points_labels.to(self.SAM1.device),
-                                              boxes=transformed_boxes.to(self.SAM1.device),
-                                              multimask_output=False,
-        )
+        masks, _, _ = self.SAM1.predict_torch(point_coords=transformed_points.to(self.SAM1.device) if transformed_points is not None else None,
+                                              point_labels=points_labels.to(self.SAM1.device) if points_labels is not None else None,
+                                              boxes=transformed_boxes.to(self.SAM1.device) if transformed_boxes is not None else None,
+                                              multimask_output=False,)
         self.SAM1.reset_image()
         masks = postprocess_masks(masks=masks,
                               area_threshold=500)
@@ -245,7 +248,7 @@ class GSamNetwork():
             raise ValueError("If 'points_coords' is provided, 'points_labels' must also be provided, and vice versa.")
         elif points_labels is not None and points_coords is None:
             raise ValueError("If 'points_labels' is provided, 'points_coords' must also be provided, and vice versa.")
-
+        
         if boxes is None:
             boxes = [None] * len(images)
         if points_coords is None:
@@ -271,99 +274,17 @@ class GSamNetwork():
                 Returns:
                     np.ndarray: The predicted mask for the image.
             """
-            transformed_boxes, transformed_points, points_labels = self.__prep_prompts(box,point_coord,point_label)
-            image = change_image_instance(image)
-            self.SAM1.set_image()
-            #POSIBLE ERROR NONE.TO  CUDA??????
-            masks, _, _ = self.SAM1.predict_torch(point_coords=transformed_points.to(self.SAM1.device),
-                                                  point_labels=points_labels.to(self.SAM1.device),
-                                                  boxes=transformed_boxes.to(self.SAM1.device),
-                                                  multimask_output=False)
-            self.SAM1.reset_image()
-            masks = postprocess_masks(masks=masks, area_threshold=500)
-            masks = masks.cpu()
-            mask = torch.any(masks, dim=0).permute(1, 2, 0).numpy()
+            mask = self.predict_SAM1(image=image,
+                                     boxes=box,
+                                     points_coords=point_coord,
+                                     points_labels=point_label)
             return mask
         results = [process_image(image, box, point_coords, point_labels) for image, box, point_coords, point_labels in zip(images, boxes, points_coords, points_labels)]
         return results
 
-    #def predict
-    #def predict_batch
-    def predict_batch(self,
-                      image,
-                      text_prompt,
-                      box_threshold,
-                      process_box_threshold,
-                      text_threshold,
-                      mode_predict) -> torch.Tensor:
-                
-        boxes, logits, phrases = self.predict_dino(image=image,
-                                                   text_prompt=text_prompt,
-                                                   box_threshold=box_threshold,
-                                                   text_threshold=text_threshold)
-        image_array = change_image_instance(image)
-        shape = image_array.shape[:2]
-        boxes = [boxes]
-        logits = [logits]
-        phrases = [phrases]
-        new_boxes, new_logits, new_phrases = process_box_batch(shape=shape, 
-                                                               boxes=boxes,
-                                                               logits=logits,
-                                                               phrases=phrases,
-                                                               box_threshold=process_box_threshold)
-        if mode_predict == 'box_predict':
-            masks = self.predict_sam_with_boxes(image=image,
-                                                boxes=new_boxes)
-            masks = torch.any(masks,dim=0).permute(1,2,0).numpy()
 
-        return new_boxes, new_logits, new_phrases, masks
-    def LangSam_batch(self,
-                image_data: torch.Tensor,
-                text_prompt: str,
-                box_threshold: float,
-                process_box_threshold: float,
-                text_threshold: float,
-                mode_predict: str,
-                mode_data: str) -> torch.Tensor:
-        
-        boxess = []
-        logitss = []
-        phrasess = []
-        images = []
-        ids = []
-        original_masks = []
-        predict_masks = []
-        for data in image_data:
-            for i in range(len(data[0])):
-                image = data[0][i]
-                mask_org = data[1][i]
-                id = data[2][i]
-                image_source = np.asarray(image)
-        
-                if mode_data == 'batch':
-                    boxes, logits, phrases, masks= self.predict_batch(image=image,
-                                                                      text_prompt=text_prompt,
-                                                                      box_threshold=box_threshold,
-                                                                      process_box_threshold=process_box_threshold,
-                                                                      text_threshold=text_threshold,
-                                                                      mode_predict=mode_predict)
-                    
-                boxess.append(boxes)
-                logitss.append(logits)
-                phrasess.append(phrases)
-                images.append(image_source)
-                original_masks.append(mask_org)
-                ids.append(id)
-                predict_masks.append(masks)
-
-        images = np.asarray(images)
-        ids = np.asarray(ids)
-        original_masks = np.asarray(original_masks)
-        predict_masks = np.asarray(predict_masks)
-        return boxess,logitss,phrasess,images,ids,original_masks, predict_masks
-
-    def reset_model(self):
-        self.sam.reset_image()
+    def reset_model_SAM1(self):
+        self.SAM1.reset_image()
 
     @property
     def device(self):
