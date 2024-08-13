@@ -30,13 +30,11 @@ class Metrics():
     dice = self.dice(y_pred,y_true)
     sensitivity = self.sensitivity(y_pred,y_true)
     specificity = self.specificity(y_pred,y_true)
-    mIoU = self.mIoU(y_pred,y_true)
     return {
         'jaccard':jaccard,
         'dice':dice,
         'sensitivity':sensitivity,
         'specificity':specificity,
-        'mIoU':mIoU
     }
   """
   def __call__(self,y_true,y_pred):

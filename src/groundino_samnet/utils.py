@@ -6,6 +6,8 @@ from groundingdino.datasets import transforms as T
 import numpy as np
 import torch
 from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
+from groundingdino.util.box_ops import box_cxcywh_to_xyxy, box_iou
+from segment_anything.utils.transforms import ResizeLongestSide
 
 def load_image_from_PIL(img):
     transform = T.Compose([
@@ -158,4 +160,9 @@ def process_box_batch(shape: tuple,
                                                                phrases_without_null, 
                                                                threshold=box_threshold)
     
-    return new_boxes, new_logits, new_phrases
+    return new_boxes[0], new_logits[0], new_phrases[0]
+
+
+def process_masks(masks):
+    pass
+

@@ -6,6 +6,11 @@ __pycache__/
 
 # C extensions
 *.so
+src/DataSets/Mamitas_Thermal_Dataset/kaggle.json
+src/DataSets/Mamitas_Thermal_Dataset/data/
+src/DataSets/Mamitas_Thermal_Dataset/mamitas-thermal-feet.zip
+pruebas.py
+main.ipynb
 
 # Distribution / packaging
 .Python
@@ -162,8 +167,3 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-Dsrc/DataSets/Mamitas_Thermal_Dataset/aggle.json
-src/DataSets/Mamitas_Thermal_Dataset/data/
-src/DataSets/Mamitas_Thermal_Dataset/mamitas-thermal-feet.zip
-pruebas.py
-main.ipynb
