@@ -26,7 +26,7 @@ Este proyecto incluye contenido derivado de [Segment-Anythin-Model_2](https://gi
 |   sam2_hiera_small   |      46      | 43.3 (53.0 compiled\*) |        74.9         |        71.5        |       76.4        |
 | sam2_hiera_base_plus |     80.8     | 34.8 (43.8 compiled\*) |        74.7         |        72.8        |       75.8        |
 |   sam2_hiera_large   |    224.4     | 24.2 (30.2 compiled\*) |        76.0         |        74.6        |       79.8        |
-
+\* Compile the model by setting `compile_image_encoder: True` in the config.
 
 
 ## Segment Anything Video Dataset
