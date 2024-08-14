@@ -34,8 +34,8 @@ Este proyecto incluye contenido derivado de [GroundingDINO](https://github.com/I
 - If you want to obtain objects of specific phrases, like the `dogs` in the sentence `two dogs with a stick.`, you can select the boxes with highest text similarities with `dogs` as final outputs. 
 - Note that each word can be split to **more than one** tokens with different tokenlizers. The number of words in a sentence may not equal to the number of text tokens.
 - We suggest separating different category names with `.` for Grounding DINO.
-![model_explain1](.asset/groundingdino/model_explan1.PNG)
-![model_explain2](.asset/groundingdino/model_explan2.PNG)
+![model_explain1](../../.asset/groundingdino/model_explan1.PNG)
+![model_explain2](../../.asset/groundingdino/model_explan2.PNG)
 
 ## :medal_military: Results
 
@@ -57,7 +57,7 @@ ODinW Object Detection Results
 
 Includes: a text backbone, an image backbone, a feature enhancer, a language-guided query selection, and a cross-modality decoder.
 
-![arch](../../.asset/groundingdino//arch.png)
+![arch](../../.asset/groundingdino/arch.png)
 
 ## :black_nib: Citation
 
