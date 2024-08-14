@@ -1,8 +1,8 @@
 <div align="center">
-  <img src=".asset/groundingdino/grounding_dino_logo.png" width="30%">
+  <img src="../../.asset/groundingdino/grounding_dino_logo.png" width="30%">
 </div>
 
-## Créditos
+# Créditos
 
 Este proyecto incluye contenido derivado de [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO?tab=readme-ov-file), que está bajo la Apache License 2.0. Puedes encontrar la documentación y detalles de la licencia en el archivo [LICENSE](src/groundingdino/LICENSE.txt).
 
@@ -43,21 +43,21 @@ Este proyecto incluye contenido derivado de [GroundingDINO](https://github.com/I
 <summary><font size="4">
 COCO Object Detection Results
 </font></summary>
-<img src=".asset/groundingdino/COCO.png" alt="COCO" width="100%">
+<img src="../../.asset/groundingdino//COCO.png" alt="COCO" width="100%">
 </details>
 
 <details open>
 <summary><font size="4">
 ODinW Object Detection Results
 </font></summary>
-<img src=".asset/groundingdino/ODinW.png" alt="ODinW" width="100%">
+<img src="../../.asset/groundingdino//ODinW.png" alt="ODinW" width="100%">
 </details>
 
 ## :sauropod: Model: Grounding DINO
 
 Includes: a text backbone, an image backbone, a feature enhancer, a language-guided query selection, and a cross-modality decoder.
 
-![arch](.asset/groundingdino/arch.png)
+![arch](../../.asset/groundingdino//arch.png)
 
 ## :black_nib: Citation
 
