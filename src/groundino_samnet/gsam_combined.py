@@ -7,7 +7,8 @@ from huggingface_hub import hf_hub_download
 from segment_anything1.build_sam import sam_model_registry
 from segment_anything1.predictor import SamPredictor
 from segment_anything1.config import SAM1_MODELS, SAM_NAMES_MODELS
-from segment_anything2.sam2_configs.config import SAM2_MODELS
+from segment_anything2.config import SAM2_MODELS
+from segment_anything2.sam2.sam2_image_predictor import SAM2ImagePredictor
 from groundingdino.util import box_ops
 from groundingdino.util.inference import predict, load_model
 
@@ -89,7 +90,7 @@ class GSamNetwork():
             Build the SAM1 model.
 
             Args:
-                SAM (str): The name of the SAM model to build.
+                SAM: The name of the SAM model to build.
         """
         try:
             checkpoint_url = SAM1_MODELS[SAM1]
@@ -113,9 +114,12 @@ class GSamNetwork():
             Build the SAM2 model.
 
             Args:
-                SAM (str): The name of the SAM model to build.
+                SAM: The name of the SAM model to build.
         """
-        pass
+        try:
+            self.SAM2 = SAM2ImagePredictor.from_pretrained(SAM)
+        except:
+            raise RuntimeError(f"Error downloading or Compile {SAM} model. Please ensure that {SAM2_MODELS[SAM]} is functional.")
 
     def predict_dino(self, 
                      image: Union[Image.Image, 
@@ -124,19 +128,20 @@ class GSamNetwork():
                      text_prompt: str, 
                      box_threshold: float, 
                      text_threshold: float,
+                     box_process_threshold: float,
                      Normalize:bool = False,) -> torch.Tensor:
         """
             Run the Grounding DINO model for bounding box prediction.
 
             Args:
-                image (Union[Image.Image, torch.Tensor, np.ndarray]): The input image with (WxHxC) shape.
-                text_prompt (str): The text prompt for bounding box prediction.
-                box_threshold (float): The threshold for bounding box prediction.
-                text_threshold (float): The threshold for text prediction.
-                Normalize (bool, optional): Whether to normalize the image. Defaults to False.
+                image: The input image with (WxHxC) shape.
+                text_prompt: The text prompt for bounding box prediction.
+                box_threshold: The threshold for bounding box prediction.
+                text_threshold: The threshold for text prediction.
+                Normalize (optional): Whether to normalize the image. Defaults to False.
 
             Returns:
-                torch.Tensor: The predicted bounding boxes with (B,4) shape with logits and phrases.
+                The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
         shape =  image_array.shape[:2]
         image_trans = load_image(image)
@@ -151,7 +156,12 @@ class GSamNetwork():
             W,H = shape
             boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
 
-        boxes,logits,phrases = PostProcessor(image_shape=shape,box_threshold=0.1,mode="single").postprocess_box(boxes,logits,phrases)
+        boxes,logits,phrases = PostProcessor.postprocess_box(image_shape=shape,
+                                                             box_threshold=box_process_threshold,
+                                                             boxes_list=boxes,
+                                                             logits_list=logits,
+                                                             phrases_list=phrases,
+                                                             mode="single")
         return boxes, logits, phrases
     
     def predict_dino_batch(self,
@@ -159,24 +169,26 @@ class GSamNetwork():
                            text_prompt: str, 
                            box_threshold: float, 
                            text_threshold: float,
+                           box_process_threshold: float,
                            Normalize:bool = False,) -> Tuple[List[torch.Tensor],List[torch.Tensor],List[torch.Tensor]]:
         """
             Run the Grounding DINO model for batch prediction.
 
             Args:
-                images (List[Union[Image.Image, torch.Tensor, np.ndarray]]): The input images with (WxHxC) shape.
-                text_prompt (str): The text prompt for bounding box prediction.
-                box_threshold (float): The threshold for bounding box prediction.
-                text_threshold (float): The threshold for text prediction.
-                Normalize (bool, optional): Whether to normalize the image. Defaults to False
+                images: The input images with (WxHxC) shape.
+                text_prompt: The text prompt for bounding box prediction.
+                box_threshold: The threshold for bounding box prediction.
+                text_threshold: The threshold for text prediction.
+                Normalize (optional): Whether to normalize the image. Defaults to False
 
             Returns:
-                Tuple[List[torch.Tensor],List[torch.Tensor],List[torch.Tensor]]: The predicted bounding boxes with (B,4) shape with logits and phrases.
+                The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
         results = list(map(lambda image: self.predict_dino(image=image,
                                                            text_prompt=text_prompt,
                                                            box_threshold=box_threshold,
                                                            text_threshold=text_threshold,
+                                                           box_process_threshold=box_process_threshold,
                                                            Normalize=Normalize), images))
         boxes, logits, phrases = zip(*results)
         boxes = list(boxes)
@@ -188,6 +200,7 @@ class GSamNetwork():
                     image: Union[Image.Image, 
                                  torch.Tensor,
                                  np.ndarray], 
+                    area_thresh: float,
                     boxes: Optional[torch.Tensor] = None,
                     points_coords: Optional[torch.Tensor] = None,
                     points_labels: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -195,13 +208,13 @@ class GSamNetwork():
             Run the SAM1 model for image segmentation.
 
             Args:
-                image (Union[Image.Image, torch.Tensor, np.ndarray]): The input image with (WxHxC) shape.
-                boxes (Optional[torch.Tensor], optional): The bounding boxes for segmentation. Defaults to None.
-                points_coords (Optional[torch.Tensor], optional): The coordinates of the points for segmentation. Defaults to None.
-                points_labels (Optional[torch.Tensor], optional): The labels of the points for segmentation. Defaults to None.
+                image: The input image with (WxHxC) shape.
+                boxes: The bounding boxes for segmentation. Defaults to None.
+                points_coords: The coordinates of the points for segmentation. Defaults to None.
+                points_labels: The labels of the points for segmentation. Defaults to None.
 
             Returns
-                torch.Tensor: The predicted segmentation mask with (WxHx1) shape.
+                The predicted segmentation mask with (WxHx1) shape.
     """
         image_array = convert_image_to_numpy(image)
         transformed_boxes,transformed_points,points_labels = self.__prep_prompts(boxes,
@@ -215,8 +228,8 @@ class GSamNetwork():
                                               boxes=transformed_boxes.to(self.SAM1.device) if transformed_boxes is not None else None,
                                               multimask_output=False,)
         self.SAM1.reset_image()
-        masks = postprocess_masks(masks=masks,
-                              area_threshold=500)
+        masks = PostProcessor.postprocess_masks(masks=masks,
+                                                area_thresh=area_thresh)
         masks = masks.cpu()
         mask = torch.any(masks,dim=0).permute(1,2,0).numpy()
         return mask
@@ -225,6 +238,7 @@ class GSamNetwork():
                            images:List[Union[Image.Image,
                                              torch.Tensor,
                                              np.ndarray]],
+                            area_thresh: float,
                            boxes:Optional[List[torch.Tensor]] = None,
                            points_coords:Optional[List[torch.Tensor]] = None,
                            points_labels:Optional[List[torch.Tensor]] = None) -> List[torch.Tensor]:
@@ -232,13 +246,13 @@ class GSamNetwork():
             Run the SAM1 model for batch prediction.
 
             Args:
-                images (List[Union[Image.Image, torch.Tensor, np.ndarray]]): The input images with (WxHxC) shape.
-                boxes (Optional[List[Optional[torch.Tensor]]]): List of bounding boxes for each image. Can be None.
-                points_coords (Optional[List[Optional[torch.Tensor]]]): List of point coordinates for each image. Can be None.
-                points_labels (Optional[List[Optional[torch.Tensor]]]): List of point labels for each image. Can be None.
+                images: The input images with (WxHxC) shape.
+                boxes: List of bounding boxes for each image. Can be None.
+                points_coords: List of point coordinates for each image. Can be None.
+                points_labels: List of point labels for each image. Can be None.
 
             Returns:
-                List[np.ndarray]: The predicted masks for each image.
+                The predicted masks for each image.
         """
         if points_coords is not None and points_labels is None:
             raise ValueError("If 'points_coords' is provided, 'points_labels' must also be provided, and vice versa.")
@@ -262,25 +276,67 @@ class GSamNetwork():
                 Process a single image with its corresponding boxes and points.
 
                 Args:
-                    image (Union[Image.Image,torch.Tensor,np.ndarray]): The input image with (WxHxC) shape.
-                    box (Optional[torch.Tensor]): The bounding boxes for the image.
-                    point_coords (Optional[torch.Tensor]): The point coordinates for the image.
-                    point_labels (Optional[torch.Tensor]): The point labels for the image.
+                    image: The input image with (WxHxC) shape.
+                    box: The bounding boxes for the image.
+                    point_coords: The point coordinates for the image.
+                    point_labels: The point labels for the image.
 
                 Returns:
                     np.ndarray: The predicted mask for the image.
             """
             mask = self.predict_SAM1(image=image,
+                                     area_thresh=area_thresh,
                                      boxes=box,
                                      points_coords=point_coord,
                                      points_labels=point_label)
             return mask
         results = [process_image(image, box, point_coords, point_labels) for image, box, point_coords, point_labels in zip(images, boxes, points_coords, points_labels)]
         return results
+    def predict_SAM2(self,
+                     image: Union[Image.Image,
+                                  torch.Tensor,
+                                  np.ndarray],
+                     point_coords: np.ndarray,
+                     point_labels: np.ndarray,
+                     box: np.ndarray, 
+                     multimask_output: bool = False) -> np.ndarray:
+        
+        """
+            
+        """
+        image_array = convert_image_to_numpy(image)
+        with torch.inference_mode(),  torch.autocast("cuda", dtype=torch.bfloat16):
+            self.SAM2.set_image(image_array)
+            masks,_,_ = self.SAM2.predict(point_coords=point_coords,
+                              point_labels=point_labels,
+                              box=box,
+                              multimask_output=multimask_output)
 
+            self.SAM2.reset_predictor()
+        
+        return masks
 
+    def predict_SAM2_batch(self,
+                           images_array: List[Union[Image.Image,torch.Tensor,np.ndarray]],
+                           points_coords: List[Union[np.ndarray]],
+                           points_labels: List[Union[np.ndarray]],
+                           boxes: List[Union[np.ndarray]],
+                           multimask_output: bool = False):
+            images_numpy_array = [convert_image_to_numpy(image) for image in images_array]
+            with torch.inference_mode(),  torch.autocast("cuda", dtype=torch.bfloat16):
+                self.SAM2.set_image_batch(images_numpy_array)
+                masks,_,_ = self.SAM2.predict_batch(point_coords=points_coords,
+                                                    point_labels=points_labels,
+                                                    box=boxes,
+                                                    multimask_output=multimask_output)
+                self.SAM2.reset_predictor()
+            return masks
+    
     def reset_model_SAM1(self):
         self.SAM1.reset_image()
+    
+    def reset_model_SAM2(self):
+        self.SAM2.reset_predictor()
 
     
     def __prep_prompts(self,boxes,points_coords,points_labels,dims):

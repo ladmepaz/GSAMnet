@@ -6,7 +6,9 @@ from torchvision.transforms import transforms
 from groundingdino.datasets import transforms as T
 from groundingdino.util.box_ops import box_cxcywh_to_xyxy, box_iou
 from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
-
+from segment_anything1.utils.amg import remove_small_regions
+import cv2
+MODES = ["single", "batch"]
 def load_image_from_PIL(img:Image.Image) -> torch.Tensor:
     """
         Load a PIL image while ensuring it meets the specifications required by GroundingDINO.
@@ -103,23 +105,24 @@ import torch
 from typing import List, Tuple, Union
 
 class PostProcessor:
-    def __init__(self, image_shape: tuple, threshold: float, mode: str):
-        self.threshold = threshold
-        self.mode = mode
-        self.image_shape = image_shape
-        self.MODES = ["single", "batch"]
-        if self.mode not in self.MODES:
-            raise ValueError(f"Unrecognized prediction mode. Please select one of the allowed modes: {self.MODES}")
+    def __init__(self):
+        pass
 
     def purge_null_index(self, boxes: Union[torch.Tensor, List[torch.Tensor]], 
                           logits: Union[torch.Tensor, List[torch.Tensor]], 
-                          phrases: Union[torch.Tensor, List[torch.Tensor]]) -> Tuple[Union[torch.Tensor, List[torch.Tensor]], 
-                                                                                   Union[torch.Tensor, List[torch.Tensor]], 
+                          phrases: Union[torch.Tensor, List[torch.Tensor]],
+                          mode:str) -> Tuple[Union[torch.Tensor, 
+                                                   List[torch.Tensor]], 
+                                                   Union[torch.Tensor, List[torch.Tensor]], 
                                                                                    Union[List[str], List[List[str]]]]:
         """
-        Purge null index from boxes, logits, and phrases.
+            Purge null index from boxes, logits, and phrases.
         """
-        if self.mode == "single":
+
+        if mode not in MODES:
+            raise ValueError(f"Unrecognized prediction mode. Please select one of the allowed modes: {MODES}")
+
+        if mode == "single":
             filtered_data = [(box, logit, phrase) for box, logit, phrase in zip(boxes, logits, phrases) if phrase]
             if not filtered_data:
                 raise ValueError("No valid data found. No phrases for batch.")
@@ -127,7 +130,7 @@ class PostProcessor:
             new_boxes = torch.stack(new_boxes)
             new_logits = torch.stack(new_logits)
 
-        elif self.mode == "batch":
+        elif mode == "batch":
             null_indices = [
                 {idx for idx, x in enumerate(phrases_batch) if x == ''}
                 for phrases_batch in phrases
@@ -152,12 +155,14 @@ class PostProcessor:
         return new_boxes, new_logits, new_phrases
 
     def select_non_overlapping_boxes(self,
+                                     image_shape: Tuple,
+                                     threshold: float,
                                      boxes: torch.Tensor, 
                                      logits: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, List[int]]:
         """
         Select non-overlapping boxes based on the IoU threshold.
         """
-        W, H = self.image_shape
+        W, H = image_shape
         boxes_xyxy = box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
         iou_matrix, _ = box_iou(boxes_xyxy, boxes_xyxy)
         iou_matrix.fill_diagonal_(0)
@@ -174,7 +179,7 @@ class PostProcessor:
             selected_indices.append(min_iou_index)
 
             remaining_indices.remove(min_iou_index)
-            overlap_indices = (iou_matrix[min_iou_index] > self.threshold).nonzero(as_tuple=True)[0].tolist()
+            overlap_indices = (iou_matrix[min_iou_index] > threshold).nonzero(as_tuple=True)[0].tolist()
             remaining_indices = [idx for idx in remaining_indices if idx not in overlap_indices]
 
         if len(selected_indices) > 2:
@@ -187,29 +192,36 @@ class PostProcessor:
         return boxes[selected_indices], logits[selected_indices], selected_indices
 
     def postprocess_box(self,
-                    boxes_list: Union[torch.Tensor, List[torch.Tensor]], 
-                    logits_list: Union[torch.Tensor, List[torch.Tensor]], 
-                    phrases_list: Union[torch.Tensor, List[torch.Tensor]]) -> Tuple[Union[torch.Tensor, List[torch.Tensor]], 
-                                                                                        Union[torch.Tensor, List[torch.Tensor]], 
-                                                                                        Union[List[str], List[List[str]]]]:
+                        image_shape: Tuple,
+                        threshold: float,
+                        boxes_list: Union[torch.Tensor, List[torch.Tensor]],
+                        logits_list: Union[torch.Tensor, List[torch.Tensor]], 
+                        phrases_list: Union[torch.Tensor, List[torch.Tensor]],
+                        mode: str) -> Union[Tuple[torch.Tensor,torch.Tensor,List],Tuple[List[torch.Tensor],List[torch.Tensor],List[List]]]:
         """
         Process the boxes, logits, and phrases.
         """
-        boxes_without_null, logits_without_null, phrases_without_null = self.purge_null_index(
-            boxes=boxes_list,
-            logits=logits_list,
-            phrases=phrases_list
-        )
+        if mode not in MODES:
+            raise ValueError(f"Unrecognized prediction mode. Please select one of the allowed modes: {MODES}")
 
-        if self.mode == "single":
-            selected_boxes, selected_logits, selected_indices = self.select_non_overlapping_boxes(boxes_without_null, logits_without_null)
+        boxes_without_null, logits_without_null, phrases_without_null = self.purge_null_index(boxes=boxes_list,
+                                                                                              logits=logits_list,
+                                                                                              phrases=phrases_list,
+                                                                                              mode=mode)
+
+        if mode == "single":
+            selected_boxes, selected_logits, selected_indices = self.select_non_overlapping_boxes(image_shape=image_shape,
+                                                                                                  threshold=threshold,
+                                                                                                  boxes=boxes_without_null, 
+                                                                                                  logits=logits_without_null)
             new_phrases = [phrases_without_null[i] for i in selected_indices]
             return selected_boxes, selected_logits, new_phrases
 
-        elif self.mode == "batch":
+        elif mode == "batch":
             new_boxes, new_logits, new_phrases = [], [], []
             for boxes, logits, phrases in zip(boxes_without_null, logits_without_null, phrases_without_null):
-                selected_boxes, selected_logits, selected_indices = self.select_non_overlapping_boxes(boxes, logits)
+                selected_boxes, selected_logits, selected_indices = self.select_non_overlapping_boxes(boxes, 
+                                                                                                      logits)
                 selected_phrases = [phrases[i] for i in selected_indices]
                 new_boxes.append(selected_boxes)
                 new_logits.append(selected_logits)
@@ -217,22 +229,16 @@ class PostProcessor:
 
             return new_boxes, new_logits, new_phrases
 
-def process_masks(masks):
-    pass
+    def postprocess_masks(self, masks: Union[torch.Tensor, List[torch.Tensor]],area_thresh):
+        mask_withou_holes, _ = torch.stack([remove_small_regions(mask,area_thresh,"holes") for mask in masks], dim=0)
+        mask_pred = mask_withou_holes
+        return mask_pred
 
 if __name__ == "__main__":
-    import random
-    B = 3
-    boxes1 = torch.randn(B, 4)
-    boxes2 = torch.randn(B, 4)
-    logits1 = torch.randn(B)
-    logits2 = torch.randn(B)
-    phrases1 = ["f","f","f"]
-    phrases2 = ["f","f","f"]
+    binary_image = np.zeros((100, 100), dtype=np.uint8)
+    cv2.circle(binary_image, (30, 30), 10, 255, -1)
+    cv2.circle(binary_image, (70, 70), 10, 255, -1)
+    binary_image = torch.Tensor(binary_image).to(torch.uint8)
 
-    boxes = [boxes1, boxes2]
-    logits = [logits1, logits2]
-    phrases = [phrases1, phrases2]
-
-    boxes, logits, phrases = process_multiple_sets((480,680),boxes,logits,phrases,0.1,"batch")
-    print(boxes)
+    mask = PostProcessor((480,640),0.1,"single").postprocess_masks(binary_image)
+    print(mask)

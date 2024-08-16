@@ -1,25 +1,31 @@
 import os
 import glob
-import os
+import sys  
 os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
-import torch
+import subprocess
 from setuptools.command.install import install
-from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension,BuildExtension
+
 from setuptools import setup, find_packages
-import sys
+link = "https://download.pytorch.org/whl/cu121"
 
-class CustomInstallCommand(install):
-    """Comando personalizado para instalar dependencias adicionales."""
-    def run(self):
-        # Instalar las dependencias estándar
-        install.run(self)
-        # Instalar dependencias adicionales con un índice específico
-        os.system("pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121")
+def get_torch(): 
+    TORCH_AVAILABLE = False
+    try:
+        env = os.environ.copy()
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio", "--index-url", link],env=env)
+        TORCH_AVAILABLE = True
+        os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
+    except Exception as e:
+        raise RuntimeError(f"Error downloading torch. Ensure that {link} is functional. ERROR: {str(e)}")
+    return TORCH_AVAILABLE
+def get_extensions(TORCH_AVAILABLE: bool):
+    if TORCH_AVAILABLE:
+        import torch
+        from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
 
-def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
     extensions_dir = os.path.join(this_dir, "src", "groundingdino", "models", "GroundingDINO", "csrc")
-    extensions_dir2 = os.path.join(this_dir, "src", "groundingdino", "models", "GroundingDINO", "csrc", "MsDeformAttn")
+    #extensions_dir2 = os.path.join(this_dir, "src", "groundingdino", "models", "GroundingDINO", "csrc", "MsDeformAttn")
 
 
     main_source = os.path.join(extensions_dir, "vision.cpp")
@@ -149,12 +155,23 @@ def parse_requirements(fname="requirements.txt", with_version=True):
 
 
 def build_extensions():
+    TORCH_AVAILABLE = get_torch()
+    if TORCH_AVAILABLE:
+        from torch.utils.cpp_extension import BuildExtension
+
+    with open("LICENSE", "r", encoding="utf-8") as f:
+        license = f.read()
     setup(
-        name="groundingdino",
+        name="groundino_samnet",
+        version="0.1.0",
+        author="Wilhelm David Buitrago Garcia",
+        url="https://github.com/IDEA-Research/GroundingDINO",
+        description="A SAM model with GroundingDINO model",
+        license=license,
         package_dir={"": "src"},
         packages=find_packages(where="src"),
         install_requires=parse_requirements("requirements.txt"),
-        ext_modules=get_extensions(),
+        ext_modules=get_extensions(TORCH_AVAILABLE=TORCH_AVAILABLE),
         cmdclass={"build_ext": BuildExtension},
     )
 
