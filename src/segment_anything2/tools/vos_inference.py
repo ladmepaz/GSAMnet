@@ -10,7 +10,7 @@ import os
 import numpy as np
 import torch
 from PIL import Image
-from sam2.build_sam import build_sam2_video_predictor
+from segment_anything2.build_sam import build_sam2_video_predictor
 
 
 # the PNG palette for DAVIS 2017 dataset

@@ -7,16 +7,39 @@ from setuptools.command.install import install
 
 from setuptools import setup, find_packages
 link = "https://download.pytorch.org/whl/cu121"
+REQUIRED_PACKAGES = [
+    "numpy==1.26.4",
+    "transformers==4.42.4",
+    "huggingface_hub==0.23.5",
+    "addict==2.4.0",
+    "opencv-python==4.10.0.84",
+    "pycocotools",
+    "yapf",
+    "timm",
+    "supervision==0.22.0",
+    "tqdm>=4.66.1",
+    "scikit-learn",
+    "hydra-core>=1.3.2",
+    "iopath>=0.1.10",
+    "ninja"
+]
+
 
 def get_torch(): 
     TORCH_AVAILABLE = False
+    env = os.environ.copy()
     try:
-        env = os.environ.copy()
         subprocess.check_call([sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio", "--index-url", link],env=env)
         TORCH_AVAILABLE = True
         os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
     except Exception as e:
         raise RuntimeError(f"Error downloading torch. Ensure that {link} is functional. ERROR: {str(e)}")
+    
+    try:
+        subprocess.check_call([sys.executable,"-m","pip","install","hydra-core","--upgrade"],env=env)
+    except Exception as e:
+        raise RuntimeError(f"Error downloading hydra-cores: {str(e)}")
+    
     return TORCH_AVAILABLE
 def get_extensions(TORCH_AVAILABLE: bool):
     if TORCH_AVAILABLE:
@@ -25,8 +48,8 @@ def get_extensions(TORCH_AVAILABLE: bool):
 
     this_dir = os.path.dirname(os.path.abspath(__file__))
     extensions_dir = os.path.join(this_dir, "src", "groundingdino", "models", "GroundingDINO", "csrc")
-    #extensions_dir2 = os.path.join(this_dir, "src", "groundingdino", "models", "GroundingDINO", "csrc", "MsDeformAttn")
-
+    extension_dir_sam = os.path.join(this_dir,"src","segment_anything2","csrc")
+    srcs_sam2 = [f"{this_dir}/src/segment_anything2/csrc/connected_components.cu"]
 
     main_source = os.path.join(extensions_dir, "vision.cpp")
     sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"))
@@ -61,7 +84,7 @@ def get_extensions(TORCH_AVAILABLE: bool):
         return None
 
     sources = [os.path.join(extensions_dir, s) for s in sources]
-    include_dirs = [extensions_dir]
+    include_dirs = [extensions_dir] 
 
     ext_modules = [
         extension(
@@ -70,6 +93,13 @@ def get_extensions(TORCH_AVAILABLE: bool):
             include_dirs=include_dirs,
             define_macros=define_macros,
             extra_compile_args=extra_compile_args,
+        ),
+        extension(
+            "segment_anything2._C", 
+            sources=srcs_sam2, 
+            include_dirs=[extension_dir_sam],
+            define_macros=define_macros,
+            extra_compile_args=extra_compile_args
         )
     ]
 
@@ -165,14 +195,18 @@ def build_extensions():
         name="groundino_samnet",
         version="0.1.0",
         author="Wilhelm David Buitrago Garcia",
-        url="https://github.com/IDEA-Research/GroundingDINO",
+        url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model",
         license=license,
         package_dir={"": "src"},
         packages=find_packages(where="src"),
-        install_requires=parse_requirements("requirements.txt"),
+        install_requires=REQUIRED_PACKAGES,
         ext_modules=get_extensions(TORCH_AVAILABLE=TORCH_AVAILABLE),
         cmdclass={"build_ext": BuildExtension},
+        python_requires='==3.10.12',
+        classifiers=[
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3.10"]
     )
 
 if __name__ == "__main__":

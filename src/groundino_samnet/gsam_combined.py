@@ -2,13 +2,13 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from typing import List, Union, Tuple, Optional
+from typing import List, Union, Tuple, Optional 
 from huggingface_hub import hf_hub_download
 from segment_anything1.build_sam import sam_model_registry
 from segment_anything1.predictor import SamPredictor
 from segment_anything1.config import SAM1_MODELS, SAM_NAMES_MODELS
 from segment_anything2.config import SAM2_MODELS
-from segment_anything2.sam2.sam2_image_predictor import SAM2ImagePredictor
+from segment_anything2.sam2_image_predictor import SAM2ImagePredictor
 from groundingdino.util import box_ops
 from groundingdino.util.inference import predict, load_model
 
