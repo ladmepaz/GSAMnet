@@ -18,10 +18,9 @@ class GSamNetwork():
             raise TypeError(f"The SAM parameter should be a single value, not a list or collection. Please provide one of the following valid model names: {SAM_NAMES_MODELS + [None]}.")
         if SAM not in SAM_NAMES_MODELS:
             raise ValueError(f"The specified SAM model '{SAM}' does not exist. Please select a valid model from the following options: {SAM_NAMES_MODELS}.")
-        if not isinstance(SAM_MODEL,str):
+        if SAM_MODEL is not None and not isinstance(SAM_MODEL,str):
             raise TypeError(f"The SAM model should be a single value, not a list or collection. Please provide one of the following valid model names: {list(SAM1_MODELS.keys()) + list(SAM2_MODELS.keys()) + [None]}.")
         self.__file_path = os.path.dirname(os.path.abspath(__file__))
-        self.weights_path = os.path.join(self.__file_path, "weights")
         self.default_sam1 = "vit_h"
         self.default_sam2 = "large"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -93,7 +92,7 @@ class GSamNetwork():
                 SAM: The name of the SAM model to build.
         """
         try:
-            checkpoint_url = SAM1_MODELS[SAM1]
+            checkpoint_url = SAM1_MODELS[SAM]
             sam = sam_model_registry[SAM]()
             state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
         except Exception as e:
@@ -117,7 +116,8 @@ class GSamNetwork():
                 SAM: The name of the SAM model to build.
         """
         try:
-            self.SAM2 = SAM2ImagePredictor.from_pretrained(SAM)
+            checkpoint_url = SAM2_MODELS[SAM]
+            self.SAM2 = SAM2ImagePredictor.from_pretrained(checkpoint_url)
         except:
             raise RuntimeError(f"Error downloading or Compile {SAM} model. Please ensure that {SAM2_MODELS[SAM]} is functional.")
 
