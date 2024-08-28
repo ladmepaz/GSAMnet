@@ -57,12 +57,13 @@ class Mamitas_Create_Dataset(Dataset):
         return img, mask, id_image
 
 class Mamitas_Thermal_Feet_Dataset():
-    def __init__(self):
+    def __init__(self,credentials_path):
         self.__path_file = os.path.abspath(__file__)
         self.final_path = os.path.join(os.path.dirname(self.__path_file),'data\\')
         self.final_path_zip = os.path.join(os.path.dirname(self.__path_file),'mamitas-thermal-feet.zip')
         self.file_imgs = []
         self.file_masks = []
+        self.credentials_path = credentials_path
         
         self.download_by_kaggle()
 
@@ -78,7 +79,7 @@ class Mamitas_Thermal_Feet_Dataset():
 
     def download_by_kaggle(self):
       try:
-            credential = os.path.join(os.path.dirname(self.__path_file), 'kaggle.json')
+            credential = self.credentials_path
             if not os.path.isfile(credential):
                 raise FileNotFoundError(f"No se encontró el archivo kaggle.json en {credential}")
             dest_folder = os.path.expanduser('~/.kaggle/')

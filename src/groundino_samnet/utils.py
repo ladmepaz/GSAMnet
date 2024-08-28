@@ -108,6 +108,8 @@ class PostProcessor:
     def __init__(self):
         pass
 
+    def __call__(self):
+        return self
     def purge_null_index(self, boxes: Union[torch.Tensor, List[torch.Tensor]], 
                           logits: Union[torch.Tensor, List[torch.Tensor]], 
                           phrases: Union[torch.Tensor, List[torch.Tensor]],
@@ -229,16 +231,48 @@ class PostProcessor:
 
             return new_boxes, new_logits, new_phrases
 
-    def postprocess_masks(self, masks: Union[torch.Tensor, List[torch.Tensor]],area_thresh):
-        mask_withou_holes, _ = torch.stack([remove_small_regions(mask,area_thresh,"holes") for mask in masks], dim=0)
-        mask_pred = mask_withou_holes
-        return mask_pred
+    def postprocess_masks(self, masks: Union[torch.Tensor, List[torch.Tensor]], area_thresh: float) -> Union[torch.Tensor, List[torch.Tensor]]:
+        def process_masks(mask_list: torch.Tensor, area_thresh: float, mode: str) -> torch.Tensor:
+            """Apply remove_small_regions to a list of masks and return a stacked tensor."""
+
+            masks_np = [remove_small_regions(mask.squeeze().detach().cpu().numpy(), area_thresh, mode)[0] for mask in mask_list]
+            processed_masks = [np.expand_dims(mask, axis=0) for mask in masks_np]  # Add an extra dimension
+            return torch.stack([torch.from_numpy(mask) for mask in processed_masks], dim=0)
+        if isinstance(masks, list):
+            processed_masks = []
+            for mask_list in masks:
+                masks_without_holes = process_masks(mask_list, area_thresh, "holes")
+                masks_processed = process_masks(masks_without_holes, area_thresh, "islands")
+                processed_masks.append(masks_processed)
+            return processed_masks
+        else:
+            print("a")
+            masks_without_holes = process_masks(masks, area_thresh, "holes")
+            masks_processed = process_masks(masks_without_holes, area_thresh, "islands")
+            return masks_processed
+
 
 if __name__ == "__main__":
-    binary_image = np.zeros((100, 100), dtype=np.uint8)
-    cv2.circle(binary_image, (30, 30), 10, 255, -1)
-    cv2.circle(binary_image, (70, 70), 10, 255, -1)
-    binary_image = torch.Tensor(binary_image).to(torch.uint8)
+        # Prueba de la función
+    def test_postprocess_masks():
+        # Create dummy data
+        masks = torch.randint(0, 2, (3, 1, 5, 5), dtype=torch.bool).to(device='cuda')  # Tensor of shape (N, W, H, C)
+        
 
-    mask = PostProcessor((480,640),0.1,"single").postprocess_masks(binary_image)
-    print(mask)
+        processor = PostProcessor()
+        
+        # Test with a single tensor
+        processed_masks = processor.postprocess_masks(masks, area_thresh=500)
+        print("Processed masks (single tensor):")
+        print(processed_masks)
+
+                # Test with a list of tensors
+        mask_list = [torch.randint(0, 2, (5, 5, 3), dtype=torch.bool) for _ in range(3)]
+        processed_mask_list = processor.postprocess_masks(mask_list, area_thresh=5)
+        print("\nProcessed masks (list of tensors):")
+        print(processed_mask_list)
+        
+
+
+    # Run the test
+    test_postprocess_masks()

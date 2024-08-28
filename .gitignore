@@ -6,11 +6,14 @@ __pycache__/
 
 # C extensions
 *.so
-kaggle.json
-data/
-src/DataSets/Mamitas_Thermal_Dataset/mamitas-thermal-feet.zip
+src\\DataSets\\Mamitas_Thermal_Dataset\\kaggle.json
+data\\
+src\\DataSets\\Mamitas_Thermal_Dataset\\mamitas-thermal-feet.zip
 pruebas.py
 main.ipynb
+prueba2.ipynb
+prueba22.ipynb
+description.md
 
 # Distribution / packaging
 .Python

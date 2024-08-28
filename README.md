@@ -12,7 +12,7 @@ GSamNetwork requires `python==3.10.12`, as well as `torch==2.4.0`.
 ##Enviroment Conda
 
 ``
-conda crate -n <> python==3.10.12 && conda activate <>
+conda crate -n <name> python==3.10.12 && conda activate <name>
 ``
 
 ###Installing torch

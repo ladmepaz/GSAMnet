@@ -7,7 +7,7 @@ from huggingface_hub import hf_hub_download
 from segment_anything1.build_sam import sam_model_registry
 from segment_anything1.predictor import SamPredictor
 from segment_anything1.config import SAM1_MODELS, SAM_NAMES_MODELS
-from segment_anything2.config import SAM2_MODELS
+from segment_anything2.sam2_config.config import SAM2_MODELS
 from segment_anything2.sam2_image_predictor import SAM2ImagePredictor
 from groundingdino.util import box_ops
 from groundingdino.util.inference import predict, load_model
@@ -22,7 +22,7 @@ class GSamNetwork():
             raise TypeError(f"The SAM model should be a single value, not a list or collection. Please provide one of the following valid model names: {list(SAM1_MODELS.keys()) + list(SAM2_MODELS.keys()) + [None]}.")
         self.__file_path = os.path.dirname(os.path.abspath(__file__))
         self.default_sam1 = "vit_h"
-        self.default_sam2 = "large"
+        self.default_sam2 = "sam2_l"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         print("Notice: Loading GroundDINO model")
@@ -143,9 +143,10 @@ class GSamNetwork():
             Returns:
                 The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
-        shape =  image_array.shape[:2]
+        
         image_trans = load_image(image)
         image_array = convert_image_to_numpy(image)
+        shape =  image_array.shape[:2]
         boxes, logits, phrases = predict(model=self.groundingdino,
                                          image=image_trans,
                                          caption=text_prompt,
@@ -156,8 +157,8 @@ class GSamNetwork():
             W,H = shape
             boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
 
-        boxes,logits,phrases = PostProcessor.postprocess_box(image_shape=shape,
-                                                             box_threshold=box_process_threshold,
+        boxes,logits,phrases = PostProcessor().postprocess_box(image_shape=shape,
+                                                             threshold=box_process_threshold,
                                                              boxes_list=boxes,
                                                              logits_list=logits,
                                                              phrases_list=phrases,
@@ -228,7 +229,7 @@ class GSamNetwork():
                                               boxes=transformed_boxes.to(self.SAM1.device) if transformed_boxes is not None else None,
                                               multimask_output=False,)
         self.SAM1.reset_image()
-        masks = PostProcessor.postprocess_masks(masks=masks,
+        masks = PostProcessor().postprocess_masks(masks=masks,
                                                 area_thresh=area_thresh)
         masks = masks.cpu()
         mask = torch.any(masks,dim=0).permute(1,2,0).numpy()
@@ -340,12 +341,14 @@ class GSamNetwork():
 
     
     def __prep_prompts(self,boxes,points_coords,points_labels,dims):
-        W,H = dims
+        H,W = dims #Cambiado dimensiones al reves
         if boxes is not None:
             clip_valor = np.clip(boxes[0][0], 0, 1)
             if clip_valor == boxes[0][0]:
                 boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W,H,W,H])
                 transformed_boxes = self.SAM1.transform.apply_boxes_torch(boxes, (W,H))
+            else:
+                transformed_boxes = boxes #Agregado 
         else:
             transformed_boxes=None
 

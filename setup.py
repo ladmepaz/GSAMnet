@@ -6,6 +6,7 @@ import subprocess
 import torch
 from torch.utils.cpp_extension import CUDA_HOME,CppExtension,CUDAExtension,BuildExtension
 from setuptools.command.install import install
+import pathlib
 
 from setuptools import setup, find_packages
 link = "https://download.pytorch.org/whl/cu121"
@@ -92,12 +93,17 @@ def build_extensions():
 
     with open("LICENSE", "r", encoding="utf-8") as f:
         license = f.read()
+
+    HERE = pathlib.Path(__file__).parent
+    README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.1.9",
+        version="0.1.18",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model",
+        long_description=README,
+        long_description_content_type="text/markdown",  # Este especifica el tipo de contenido del long_description.
         license=license,
         package_dir={"": "src"},
         packages=find_packages(where="src"),
@@ -107,7 +113,10 @@ def build_extensions():
         python_requires='==3.10.12',
         classifiers=[
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.10"]
+            "Programming Language :: Python :: 3.10"],
+        project_urls={
+        "Grounding-samnet": "https://github.com/WilhelmBuitrago/DiagAssistAI"
+        },
     )
 
 if __name__ == "__main__":
