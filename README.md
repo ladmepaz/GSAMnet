@@ -9,9 +9,9 @@
 
 This project integrates the **GroundingDINO** model with the **SAM1** and **SAM2** models to achieve accurate detection and segmentation of feet in women in labor.
 
-- **GroundingDINO**: [Repository Link](https://github.com/yourusername/GroundingDINO)
-- **SAM1**: [Repository Link](https://github.com/yourusername/SAM1)
-- **SAM2**: [Repository Link](https://github.com/yourusername/SAM2)
+- **GroundingDINO**: [Repository Link](https://github.com/IDEA-Research/GroundingDINO)
+- **SAM1**: [Repository Link](https://github.com/facebookresearch/segment-anything)
+- **SAM2**: [Repository Link](https://github.com/facebookresearch/segment-anything-2)
 
 # Installation
 
