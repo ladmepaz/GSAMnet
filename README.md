@@ -1,9 +1,17 @@
 # DiagAssistAI
+
+# Model overview
 ![GitHub License](https://img.shields.io/github/license/WilhelmBuitrago/DiagAssistAI)
 ![Static Badge](https://img.shields.io/badge/Python-3.10.12-blue?logo=python)
 <p float="center">
   <img src=".asset/model_p.png?raw=true"/>
 </p>
+
+This project integrates the **GroundingDINO** model with the **SAM1** and **SAM2** models to achieve accurate detection and segmentation of feet in women in labor.
+
+- **GroundingDINO**: [Repository Link](https://github.com/yourusername/GroundingDINO)
+- **SAM1**: [Repository Link](https://github.com/yourusername/SAM1)
+- **SAM2**: [Repository Link](https://github.com/yourusername/SAM2)
 
 # Installation
 
