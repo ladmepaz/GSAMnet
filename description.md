@@ -26,8 +26,10 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.1.20
+## Version 0.1.21
 
 ### Fixed
 
 Resolved: Error to upload .ymail files to pypi library
+
+Resolved: Error with absolutes path in the setup.py

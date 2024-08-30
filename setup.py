@@ -6,6 +6,7 @@ import subprocess
 import torch
 from torch.utils.cpp_extension import CUDA_HOME,CppExtension,CUDAExtension,BuildExtension
 from setuptools.command.install import install
+from setuptools import find_namespace_packages
 import pathlib
 
 from setuptools import setup, find_packages
@@ -30,14 +31,15 @@ REQUIRED_PACKAGES = [
 
 def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    extensions_dir = os.path.join(this_dir, "src", "groundingdino", "models", "GroundingDINO", "csrc")
-    extension_dir_sam = os.path.join(this_dir,"src","segment_anything2","csrc")
-    srcs_sam2 = [f"{this_dir}/src/segment_anything2/csrc/connected_components.cu"]
+    extensions_dir = os.path.join("src", "groundingdino", "models", "GroundingDINO", "csrc")
+    extension_dir_sam = os.path.join("src","segment_anything2","csrc")
+    srcs_sam2 = glob.glob(os.path.join("src","segment_anything2","csrc","*.cu"),recursive=True)
 
     main_source = os.path.join(extensions_dir, "vision.cpp")
-    sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"))
-    source_cuda = glob.glob(os.path.join(extensions_dir, "**", "*.cu")) + glob.glob(
-        os.path.join(extensions_dir, "*.cu")
+
+    sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"),recursive=True)
+    source_cuda = glob.glob(os.path.join(extensions_dir, "**", "*.cu"),recursive=True) + glob.glob(
+        os.path.join(extensions_dir, "*.cu"),recursive=True
     )
     sources = [main_source] + sources
 
@@ -66,7 +68,7 @@ def get_extensions():
         extra_compile_args["nvcc"] = []
         return None
 
-    sources = [os.path.join(extensions_dir, s) for s in sources]
+    sources = [s for s in sources]
     include_dirs = [extensions_dir] 
 
     ext_modules = [
@@ -98,28 +100,32 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.1.20",
+        version="0.1.21",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model",
         long_description=README,
-        long_description_content_type="text/markdown",  # Este especifica el tipo de contenido del long_description.
+        long_description_content_type="text/markdown",
         license=license,
         package_dir={"": "src"},
-        packages=find_packages(where="src"),
+        packages=find_namespace_packages(where="src", exclude=["segment_anything2.csrc"]),
         include_package_data=True,
-        package_data={"": ["*.yaml"]},
+        package_data={
+            "": ["segment_anything2/sam2_config/*.yaml"],
+        },
         install_requires=REQUIRED_PACKAGES,
         ext_modules=get_extensions(),
         cmdclass={"build_ext": BuildExtension},
         python_requires='==3.10.12',
         classifiers=[
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.10"],
+            "Programming Language :: Python :: 3.10"
+        ],
         project_urls={
-        "Grounding-samnet": "https://github.com/WilhelmBuitrago/DiagAssistAI"
+            "Grounding-samnet": "https://github.com/WilhelmBuitrago/DiagAssistAI"
         },
     )
+
 
 if __name__ == "__main__":
     build_extensions()
