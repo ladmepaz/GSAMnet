@@ -35,14 +35,10 @@ def get_extensions():
     extension_dir_sam = os.path.join("src","segment_anything2","csrc")
     srcs_sam2 = glob.glob(os.path.join("src","segment_anything2","csrc","*.cu"),recursive=True)
 
-    main_source = os.path.join(extensions_dir, "vision.cpp")
+    #main_source = os.path.join(extensions_dir, "vision.cpp")
 
     sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"),recursive=True)
-    source_cuda = glob.glob(os.path.join(extensions_dir, "**", "*.cu"),recursive=True) + glob.glob(
-        os.path.join(extensions_dir, "*.cu"),recursive=True
-    )
-    sources = [main_source] + sources
-
+    source_cuda = glob.glob(os.path.join(extensions_dir, "**", "*.cu"),recursive=True) 
     extension = CppExtension
 
     extra_compile_args = {"cxx": []}
@@ -70,7 +66,6 @@ def get_extensions():
 
     sources = [s for s in sources]
     include_dirs = [extensions_dir] 
-
     ext_modules = [
         extension(
             "groundingdino._C",
@@ -100,7 +95,7 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.1.21",
+        version="0.1.22",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model",
@@ -108,7 +103,7 @@ def build_extensions():
         long_description_content_type="text/markdown",
         license=license,
         package_dir={"": "src"},
-        packages=find_namespace_packages(where="src", exclude=["segment_anything2.csrc"]),
+        packages=find_namespace_packages(where="src", exclude=["segment_anything2/csrc"]),
         include_package_data=True,
         package_data={
             "": ["segment_anything2/sam2_config/*.yaml"],

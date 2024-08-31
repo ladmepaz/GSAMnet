@@ -8,6 +8,7 @@ from groundingdino.util.box_ops import box_cxcywh_to_xyxy, box_iou
 from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
 from segment_anything1.utils.amg import remove_small_regions
 import cv2
+
 MODES = ["single", "batch"]
 def load_image_from_PIL(img:Image.Image) -> torch.Tensor:
     """
@@ -101,8 +102,14 @@ def convert_image_to_numpy(image: Union[Image.Image,
     else:
         raise TypeError(f"Unsupported image type: {type(image)}. Please provide a PIL Image, torch.Tensor, or np.ndarray.")
     return image_array
-import torch
-from typing import List, Tuple, Union
+
+def box_xyxy_to_xywh(x):
+    x0, y0, x1, y1 = x.unbind(dim=-1)
+    x = x0
+    y = y0
+    w = x1 - x0
+    h = y1 - y0
+    return torch.stack((x, y, w, h), dim=-1)
 
 class PostProcessor:
     def __init__(self):

@@ -1,4 +1,6 @@
 import os
+os.environ['TORCH_CUDNN_SDPA_ENABLED'] = '1'  #Permtute usar las funciones especiales de SAM2 como el manejo eficiente de memoria y los bloques de atencion
+
 import torch
 import numpy as np
 from PIL import Image
@@ -11,6 +13,7 @@ from segment_anything2.config import SAM2_MODELS
 from segment_anything2.sam2_image_predictor import SAM2ImagePredictor
 from groundingdino.util import box_ops
 from groundingdino.util.inference import predict, load_model
+from torchvision.ops import box_convert
 
 class GSamNetwork():
     def __init__(self,SAM: str,SAM_MODEL:Optional[str] = None):
@@ -129,7 +132,7 @@ class GSamNetwork():
                      box_threshold: float, 
                      text_threshold: float,
                      box_process_threshold: float,
-                     Normalize:bool = False,) -> torch.Tensor:
+                     UnNormalize:bool = False,) -> torch.Tensor:
         """
             Run the Grounding DINO model for bounding box prediction.
 
@@ -138,7 +141,7 @@ class GSamNetwork():
                 text_prompt: The text prompt for bounding box prediction.
                 box_threshold: The threshold for bounding box prediction.
                 text_threshold: The threshold for text prediction.
-                Normalize (optional): Whether to normalize the image. Defaults to False.
+                UnNormalize (optional): Whether to unnormalize the image. Defaults to False.
 
             Returns:
                 The predicted bounding boxes with (B,4) shape with logits and phrases.
@@ -153,16 +156,18 @@ class GSamNetwork():
                                          box_threshold=box_threshold,
                                          text_threshold=text_threshold,
                                          device=self.device)
-        if Normalize:
-            W,H = shape
-            boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
-
+        
         boxes,logits,phrases = PostProcessor().postprocess_box(image_shape=shape,
-                                                             threshold=box_process_threshold,
-                                                             boxes_list=boxes,
-                                                             logits_list=logits,
-                                                             phrases_list=phrases,
-                                                             mode="single")
+                                                        threshold=box_process_threshold,
+                                                        boxes_list=boxes,
+                                                        logits_list=logits,
+                                                        phrases_list=phrases,
+                                                        mode="single")
+        if UnNormalize:
+            W,H = shape
+            boxes = box_convert(boxes * torch.Tensor([W, H, W, H]), in_fmt="cxcywh", out_fmt="xyxy")
+
+
         return boxes, logits, phrases
     
     def predict_dino_batch(self,
@@ -300,12 +305,14 @@ class GSamNetwork():
                      point_coords: np.ndarray,
                      point_labels: np.ndarray,
                      box: np.ndarray, 
-                     multimask_output: bool = False) -> np.ndarray:
+                     area_thresh: float,
+                     multimask_output: bool = False,) -> np.ndarray:
         
         """
             
         """
         image_array = convert_image_to_numpy(image)
+        box = np.asarray(box)
         with torch.inference_mode(),  torch.autocast("cuda", dtype=torch.bfloat16):
             self.SAM2.set_image(image_array)
             masks,_,_ = self.SAM2.predict(point_coords=point_coords,
@@ -314,8 +321,12 @@ class GSamNetwork():
                               multimask_output=multimask_output)
 
             self.SAM2.reset_predictor()
-        
-        return masks
+
+            masks = PostProcessor().postprocess_masks(masks=masks,
+                                                area_thresh=area_thresh)
+            masks = masks.cpu()
+            mask = torch.any(masks,dim=0).permute(1,2,0).numpy()
+        return mask
 
     def predict_SAM2_batch(self,
                            images_array: List[Union[Image.Image,torch.Tensor,np.ndarray]],
