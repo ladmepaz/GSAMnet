@@ -5,7 +5,7 @@ from typing import Union, Tuple, List
 from torchvision.transforms import transforms
 from groundingdino.datasets import transforms as T
 from groundingdino.util.box_ops import box_cxcywh_to_xyxy, box_iou
-from DataSets.Mamitas_Thermal_Dataset.Mamitas_Dataset import PermuteTensor
+from DataSets.getdata import PermuteTensor
 from segment_anything1.utils.amg import remove_small_regions
 import cv2
 
@@ -73,7 +73,7 @@ def load_image(image: Union[Image.Image,
         transformed_image = transform(image)
         transformed_image = load_image_from_PIL(transformed_image)
     else:
-        raise TypeError(f"Unsupported image type: {type(image)}. Please provide a PIL Image, torch.Tensor, or np.ndarray.")
+        raise TypeError(f"Unsupported image type: {type(image)}. Please provide a PIL Image, torch.Tensor or np.ndarray.")
 
     return transformed_image
 
@@ -103,20 +103,13 @@ def convert_image_to_numpy(image: Union[Image.Image,
         raise TypeError(f"Unsupported image type: {type(image)}. Please provide a PIL Image, torch.Tensor, or np.ndarray.")
     return image_array
 
-def box_xyxy_to_xywh(x):
-    x0, y0, x1, y1 = x.unbind(dim=-1)
-    x = x0
-    y = y0
-    w = x1 - x0
-    h = y1 - y0
-    return torch.stack((x, y, w, h), dim=-1)
-
 class PostProcessor:
     def __init__(self):
         pass
 
     def __call__(self):
         return self
+
     def purge_null_index(self, boxes: Union[torch.Tensor, List[torch.Tensor]], 
                           logits: Union[torch.Tensor, List[torch.Tensor]], 
                           phrases: Union[torch.Tensor, List[torch.Tensor]],
@@ -241,7 +234,6 @@ class PostProcessor:
     def postprocess_masks(self, masks: Union[torch.Tensor, List[torch.Tensor]], area_thresh: float) -> Union[torch.Tensor, List[torch.Tensor]]:
         def process_masks(mask_list: torch.Tensor, area_thresh: float, mode: str) -> torch.Tensor:
             """Apply remove_small_regions to a list of masks and return a stacked tensor."""
-
             masks_np = [remove_small_regions(mask.squeeze().detach().cpu().numpy(), area_thresh, mode)[0] for mask in mask_list]
             processed_masks = [np.expand_dims(mask, axis=0) for mask in masks_np]  # Add an extra dimension
             return torch.stack([torch.from_numpy(mask) for mask in processed_masks], dim=0)
@@ -253,7 +245,6 @@ class PostProcessor:
                 processed_masks.append(masks_processed)
             return processed_masks
         else:
-            print("a")
             masks_without_holes = process_masks(masks, area_thresh, "holes")
             masks_processed = process_masks(masks_without_holes, area_thresh, "islands")
             return masks_processed

@@ -26,30 +26,20 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.1.22
+## Version 0.2.1
 
-### Fixed
+### Added
 
-Resolved: Error to import utils in sam2 image predictor
+Added: Detailed function descriptions
 
-Resolved: Error to normalize multiple boxes in predict sam1
+### Deteled
 
-Resolved: Error when normalizing the boxes during prediction with DINO.
+Deleted: `box_xyxy_to_xywh` function for utils
 
-Resolved: Error in using torch type bounding boxes in SAM2 prediction has been changed to numpy arrays
+### Notice
 
-Resolved: Conversion of image/images to numpy for visualization of images and bounding boxes
+Notice: Notice Regarding the Use of the `cleanup()` Function for Datasets
 
-Resolved: Duplicated compile c++ extensions for module _C of groundingdino
 
-### Changed
 
-Changed: Using box_convert from torchvision to convert bounding boxes from cxcywh format to xyxy format for SAM2
 
-### Add
-
-Add: Addition of code for displaying image, points, and bounding boxes for SAM2
-
-Add: Post-processing of bounding boxes for SAM2 segmentation has been added
-
-Add: The "TORCH_CUDNN_SDPA_ENABLED" rule which allows the use of special functions for SAM2

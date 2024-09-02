@@ -16,9 +16,12 @@ from groundingdino.util.inference import predict, load_model
 from torchvision.ops import box_convert
 
 class GSamNetwork():
-    def __init__(self,SAM: str,SAM_MODEL:Optional[str] = None):
-        if not isinstance(SAM, str):
-            raise TypeError(f"The SAM parameter should be a single value, not a list or collection. Please provide one of the following valid model names: {SAM_NAMES_MODELS + [None]}.")
+    def __init__(self,
+                 SAM: Optional[str],
+                 SAM_MODEL: Optional[str] = None):
+        
+        if SAM is not None and not isinstance(SAM, str):
+            raise TypeError(f"The SAM parameter should be a single value (str). Please provide one of the following valid model names: {SAM_NAMES_MODELS + [None]}.")
         if SAM not in SAM_NAMES_MODELS:
             raise ValueError(f"The specified SAM model '{SAM}' does not exist. Please select a valid model from the following options: {SAM_NAMES_MODELS}.")
         if SAM_MODEL is not None and not isinstance(SAM_MODEL,str):
@@ -164,7 +167,7 @@ class GSamNetwork():
                                                         phrases_list=phrases,
                                                         mode="single")
         if UnNormalize:
-            W,H = shape
+            H,W = shape
             boxes = box_convert(boxes * torch.Tensor([W, H, W, H]), in_fmt="cxcywh", out_fmt="xyxy")
 
 
@@ -176,7 +179,7 @@ class GSamNetwork():
                            box_threshold: float, 
                            text_threshold: float,
                            box_process_threshold: float,
-                           Normalize:bool = False,) -> Tuple[List[torch.Tensor],List[torch.Tensor],List[torch.Tensor]]:
+                           UnNormalize:bool = False,) -> Tuple[List[torch.Tensor],List[torch.Tensor],List[torch.Tensor]]:
         """
             Run the Grounding DINO model for batch prediction.
 
@@ -195,7 +198,7 @@ class GSamNetwork():
                                                            box_threshold=box_threshold,
                                                            text_threshold=text_threshold,
                                                            box_process_threshold=box_process_threshold,
-                                                           Normalize=Normalize), images))
+                                                           UnNormalize=UnNormalize), images))
         boxes, logits, phrases = zip(*results)
         boxes = list(boxes)
         logits = list(logits)
@@ -215,6 +218,7 @@ class GSamNetwork():
 
             Args:
                 image: The input image with (WxHxC) shape.
+                area_thresh: Minimum mask area
                 boxes: The bounding boxes for segmentation. Defaults to None.
                 points_coords: The coordinates of the points for segmentation. Defaults to None.
                 points_labels: The labels of the points for segmentation. Defaults to None.
@@ -244,7 +248,7 @@ class GSamNetwork():
                            images:List[Union[Image.Image,
                                              torch.Tensor,
                                              np.ndarray]],
-                            area_thresh: float,
+                           area_thresh: float,
                            boxes:Optional[List[torch.Tensor]] = None,
                            points_coords:Optional[List[torch.Tensor]] = None,
                            points_labels:Optional[List[torch.Tensor]] = None) -> List[torch.Tensor]:
@@ -306,9 +310,20 @@ class GSamNetwork():
                      point_labels: np.ndarray,
                      box: np.ndarray, 
                      area_thresh: float,
-                     multimask_output: bool = False,) -> np.ndarray:
+                     multimask_output: bool = False,) -> torch.Tensor:
         
         """
+            Run the SAM2 model for image segmentation.
+
+            Args:
+                image: The input image with (WxHxC) shape.
+                area_thresh: Minimum mask area
+                boxes: The bounding boxes for segmentation. Defaults to None.
+                points_coords: The coordinates of the points for segmentation. Defaults to None.
+                points_labels: The labels of the points for segmentation. Defaults to None.
+
+            Returns
+                The predicted segmentation mask with (WxHx1) shape.
             
         """
         image_array = convert_image_to_numpy(image)
@@ -321,7 +336,7 @@ class GSamNetwork():
                               multimask_output=multimask_output)
 
             self.SAM2.reset_predictor()
-
+            masks = torch.Tensor(masks).to(torch.bool)
             masks = PostProcessor().postprocess_masks(masks=masks,
                                                 area_thresh=area_thresh)
             masks = masks.cpu()
@@ -329,20 +344,40 @@ class GSamNetwork():
         return mask
 
     def predict_SAM2_batch(self,
-                           images_array: List[Union[Image.Image,torch.Tensor,np.ndarray]],
+                           images: List[Union[Image.Image,torch.Tensor,np.ndarray]],
                            points_coords: List[Union[np.ndarray]],
                            points_labels: List[Union[np.ndarray]],
                            boxes: List[Union[np.ndarray]],
-                           multimask_output: bool = False):
-            images_numpy_array = [convert_image_to_numpy(image) for image in images_array]
+                           area_thresh: float,
+                           multimask_output: bool = False) -> List[torch.Tensor]:
+        """
+            Run the SAM2 model for batch prediction.
+
+            Args:
+                images: List of the input images with (WxHxC) shape.
+                boxes: List of bounding boxes for each image. Can be None.
+                points_coords: List of point coordinates for each image. Can be None.
+                points_labels: List of point labels for each image. Can be None.
+
+            Returns:
+                The predicted masks for each image.
+        """
+
+        images_numpy_array = [convert_image_to_numpy(image) for image in images]
+        try:
             with torch.inference_mode(),  torch.autocast("cuda", dtype=torch.bfloat16):
                 self.SAM2.set_image_batch(images_numpy_array)
-                masks,_,_ = self.SAM2.predict_batch(point_coords=points_coords,
-                                                    point_labels=points_labels,
-                                                    box=boxes,
+                masks,_,_ = self.SAM2.predict_batch(point_coords_batch=points_coords,
+                                                    point_labels_batch=points_labels,
+                                                    box_batch=boxes,
                                                     multimask_output=multimask_output)
                 self.SAM2.reset_predictor()
+                masks = [torch.Tensor(mask).to(torch.bool) for mask in masks]
+                masks = PostProcessor().postprocess_masks(masks,area_thresh=area_thresh)
+                masks = [torch.any(mask,dim=0).permute(1,2,0).numpy() for mask in masks]
             return masks
+        finally:
+            self.SAM2.reset_predictor()
     
     def reset_model_SAM1(self):
         self.SAM1.reset_image()
@@ -351,8 +386,26 @@ class GSamNetwork():
         self.SAM2.reset_predictor()
 
     
-    def __prep_prompts(self,boxes,points_coords,points_labels,dims):
-        H,W = dims #Cambiado dimensiones al reves
+    def __prep_prompts(self,
+                       boxes: Optional[torch.Tensor],
+                       points_coords: Optional[torch.Tensor],
+                       points_labels: Optional[torch.tensor],
+                       dims: tuple) -> Tuple[Optional[torch.Tensor],Optional[torch.Tensor],Optional[torch.Tensor]]:
+        """
+            Prepare the prompts to be used by SAM1.
+
+            Args: 
+                boxes: Tensor of box coordinates
+                points_coords: Tensor of point coordinates
+                points_labels: Tensor of point labels
+                dims: Image dimensions
+
+            Return:
+                The processed prompts
+        """
+
+        H,W = dims 
+
         if boxes is not None:
             clip_valor = np.clip(boxes[0][0], 0, 1)
             if clip_valor == boxes[0][0]:
