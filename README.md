@@ -3,6 +3,7 @@
 # Model overview
 ![GitHub License](https://img.shields.io/github/license/WilhelmBuitrago/DiagAssistAI)
 ![Static Badge](https://img.shields.io/badge/Python-3.10.12-blue?logo=python)
+![PyPI - Version](https://img.shields.io/pypi/v/groundino-samnet?link=https%3A%2F%2Fpypi.org%2Fproject%2Fgroundino-samnet%2F)
 <p float="center">
   <img src=".asset/model_p.png?raw=true"/>
 </p>
