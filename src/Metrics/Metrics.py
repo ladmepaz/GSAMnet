@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import pandas as pd
+from typing import Tuple
 class Metrics():
   """
   Class for segmentation metrics
@@ -40,7 +42,35 @@ class Metrics():
   def __call__(self,y_true,y_pred):
     return self.calculate_metrics(y_true,y_pred)
   """
+  def calculate_average_mask_metrics(data: dict) -> Tuple[pd.DataFrame,pd.DataFrame]:
+    metricasc = []
+    for i in range(len(data['Images'])):
+      metricas = Metrics().calculate_metrics(data['Original'][i],data['Prediction'][i])
+      metricasc.append(metricas)
+      
+        # Asegúrate de que la lista no esté vacía
+    if not metricasc:
+        return {}
+    df_metrics = pd.DataFrame(metricasc)
+    df_metrics.insert(0,"id",data['ids'])
+    # Extrae las claves de los diccionarios
+    keys = metricasc[0].keys()
 
+    # Convierte la lista de diccionarios en un array de numpy
+    array = np.array([[d[key] for key in keys] for d in metricasc])
+
+    # Calcula el promedio a lo largo del eje 0
+    avg_array = np.mean(array, axis=0)
+
+    # Convierte el array promedio de vuelta a un diccionario
+    avg_dict = {key: avg_array[i] for i, key in enumerate(keys)}
+    # Imprime cada clave con su valor promedio
+    for key, value in avg_dict.items():
+        print(f"{key} Promedio = {value}")
+    
+    df_prom = pd.DataFrame([avg_dict])
+    return df_metrics, df_prom
+  
   def calculate_confusion_matrix(self,y_true,y_pred):
     """
     Calculate the confusion matrix

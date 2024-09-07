@@ -27,19 +27,11 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.2.1
+## Version 0.3.5
 
-### Added
+### Chagend
 
-Added: Detailed function descriptions
-
-### Deteled
-
-Deleted: `box_xyxy_to_xywh` function for utils
-
-### Notice
-
-Notice: Notice Regarding the Use of the `cleanup()` Function for Datasets
+Changed: Individual Post-proccesing for predict_dino in single and batch mode.
 
 
 

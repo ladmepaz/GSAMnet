@@ -3,27 +3,73 @@ from groundingdino.util.inference import annotate
 import matplotlib.pyplot as plt
 import numpy as np
 from .utils import convert_image_to_numpy
+from typing import List, Tuple, Optional, Union
 
 def plot_grid(images,idss,boxes,logits,phrases,**args):
   imag_max = args.get("image_max",10) #cambiado, truncado de 20 a 10
+  padding = args.get("padding",1)
   if len(images) > imag_max:
-    print(f"Warning: The amount displayed will be truncated to 10. You can change this value using the image_max argument, but there is a risk of not displaying the images correctly.")
-    images = images[:20]
-    idss = idss[:20]
-    boxes = boxes[:20]
-    logits = logits[:20]
-    phrases = phrases[:20]
+    print(f"Warning: The amount displayed will be truncated to {imag_max}. You can change this value using the image_max argument, but there is a risk of not displaying the images correctly.")
+    images = images[:imag_max]
+    idss = idss[:imag_max]
+    boxes = boxes[:imag_max]
+    logits = logits[:imag_max]
+    phrases = phrases[:imag_max]
     images = [convert_image_to_numpy(image) for image in images]
   annotated_frames = []
   for i in range(len(boxes)):
     annotated_frame = annotate(image_source=images[i], boxes=boxes[i], logits=logits[i], phrases=phrases[i])
     annotated_frames.append(annotated_frame)
-  sv.plot_images_grid(
+  plot_image_grid(
     images=annotated_frames,
-    grid_size=(8, int(len(annotated_frames) / 8)+1),
-    size=(15, 15),
-    titles=idss
+    image_size=(20, 20),
+    titles=idss,
+    padding=padding
   )
+
+def plot_image_grid(images: List, grid_size:Optional[Tuple] = None, image_size: Tuple = (10, 10), titles: List[str] = None, padding:Union[float,int] =1):
+    """
+    Plots a grid of images using matplotlib with padding between images.
+    
+    Args:
+      images: List of images (numpy arrays or image-like objects).
+      grid_size: Tuple (rows, cols) specifying the grid dimensions. If None, it is calculated automatically.
+      image_size: Tuple (width, height) specifying the size of each image in the grid.
+      titles: List of titles for each image. If None, no titles are displayed.
+      padding: Padding size between images.
+    """
+    # Ensure images is a list
+    if not isinstance(images, list):
+        raise TypeError("Images should be provided as a list. For plot a individual image use 'plot_image'")
+    
+    # Determine grid size
+    num_images = len(images)
+    if grid_size is None:
+        cols = 5
+        rows = int(np.ceil(num_images / cols))
+    else:
+        rows, cols = grid_size
+    
+    # Create a figure and axes
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * (image_size[0] + padding), rows * (image_size[1] + padding)))
+    
+    # Flatten the axes array for easy iteration
+    axes = axes.flatten()
+    
+    # Plot each image
+    for ax, img, title in zip(axes, images, titles or [None] * num_images):
+        ax.imshow(img)
+        ax.axis('off')
+        if title:
+            ax.set_title(title, fontsize=120)
+    
+    # Turn off axes for any unused subplots
+    for ax in axes[num_images:]:
+        ax.axis('off')
+    
+    # Adjust layout with padding
+    plt.subplots_adjust(wspace=padding / image_size[0], hspace=padding / image_size[1])
+    plt.show()
 
 def plot_image(image,boxes,logits,phrases):
   convert_image_to_numpy(image)

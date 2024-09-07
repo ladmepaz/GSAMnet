@@ -135,7 +135,8 @@ class GSamNetwork():
                      box_threshold: float, 
                      text_threshold: float,
                      box_process_threshold: float,
-                     UnNormalize:bool = False,) -> torch.Tensor:
+                     UnNormalize:bool = False,
+                     **args) -> torch.Tensor:
         """
             Run the Grounding DINO model for bounding box prediction.
 
@@ -149,7 +150,9 @@ class GSamNetwork():
             Returns:
                 The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
-        
+        postproccesingv1 = args.get("postproccesingv1",False)
+        postproccesingv2 = args.get("postproccesingv2",False)
+
         image_trans = load_image(image)
         image_array = convert_image_to_numpy(image)
         shape =  image_array.shape[:2]
@@ -160,12 +163,16 @@ class GSamNetwork():
                                          text_threshold=text_threshold,
                                          device=self.device)
         
-        boxes,logits,phrases = PostProcessor().postprocess_box(image_shape=shape,
-                                                        threshold=box_process_threshold,
-                                                        boxes_list=boxes,
-                                                        logits_list=logits,
-                                                        phrases_list=phrases,
-                                                        mode="single")
+        if postproccesingv1:
+            boxes,logits,phrases = PostProcessor().postprocess_box(image_shape=shape,
+                                                            threshold=box_process_threshold,
+                                                            boxes_list=boxes,
+                                                            logits_list=logits,
+                                                            phrases_list=phrases,
+                                                            mode="single")
+        if postproccesingv2:
+            boxes,logits,phrases = PostProcessor2(shape=shape).postprocess_boxes(boxes,logits,phrases)
+
         if UnNormalize:
             H,W = shape
             boxes = box_convert(boxes * torch.Tensor([W, H, W, H]), in_fmt="cxcywh", out_fmt="xyxy")
@@ -179,7 +186,8 @@ class GSamNetwork():
                            box_threshold: float, 
                            text_threshold: float,
                            box_process_threshold: float,
-                           UnNormalize:bool = False,) -> Tuple[List[torch.Tensor],List[torch.Tensor],List[torch.Tensor]]:
+                           UnNormalize:bool = False,
+                           **args) -> Tuple[List[torch.Tensor],List[torch.Tensor],List[torch.Tensor]]:
         """
             Run the Grounding DINO model for batch prediction.
 
@@ -193,6 +201,8 @@ class GSamNetwork():
             Returns:
                 The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
+        postproccesingv1 = args.get("postproccesingv1",False)
+        postproccesingv2 = args.get("postproccesingv2",False)
         results = list(map(lambda image: self.predict_dino(image=image,
                                                            text_prompt=text_prompt,
                                                            box_threshold=box_threshold,
@@ -203,6 +213,17 @@ class GSamNetwork():
         boxes = list(boxes)
         logits = list(logits)
         phrases = list(phrases)
+        shape =  images[0].shape[:2]
+        if postproccesingv1:
+            boxes,logits,phrases = PostProcessor().postprocess_box(image_shape=shape,
+                                                                   threshold=box_process_threshold,
+                                                                   boxes_list=boxes,
+                                                                   logits_list=logits,
+                                                                   phrases_list=phrases,
+                                                                   mode="batch")
+        if postproccesingv2:
+            boxes,logits,phrases = PostProcessor2(shape=shape).postprocess_boxes(boxes,logits,phrases,batch_mode=True)
+
         return boxes, logits, phrases
     
     def predict_SAM1(self,
@@ -241,7 +262,7 @@ class GSamNetwork():
         masks = PostProcessor().postprocess_masks(masks=masks,
                                                 area_thresh=area_thresh)
         masks = masks.cpu()
-        mask = torch.any(masks,dim=0).permute(1,2,0).numpy()
+        mask = torch.any(masks,dim=0).permute(1,2,0)
         return mask
     
     def predict_SAM1_batch(self,
@@ -340,7 +361,7 @@ class GSamNetwork():
             masks = PostProcessor().postprocess_masks(masks=masks,
                                                 area_thresh=area_thresh)
             masks = masks.cpu()
-            mask = torch.any(masks,dim=0).permute(1,2,0).numpy()
+            mask = torch.any(masks,dim=0).permute(1,2,0)
         return mask
 
     def predict_SAM2_batch(self,
@@ -431,7 +452,7 @@ class GSamNetwork():
         
         
 if __name__ == "__main__":
-    from groundino_samnet.utils import PostProcessor, load_image, convert_image_to_numpy
+    from groundino_samnet.utils import PostProcessor, PostProcessor2, load_image, convert_image_to_numpy
     SAM1 = GSamNetwork(SAM="SAM2",SAM_MODEL="sa")
 else:
-    from .utils import PostProcessor, load_image, convert_image_to_numpy
+    from .utils import PostProcessor, PostProcessor2, load_image, convert_image_to_numpy

@@ -26,7 +26,8 @@ REQUIRED_PACKAGES = [
     "hydra-core>=1.3.2",
     "iopath>=0.1.10",
     "ninja",
-    "kaggle"
+    "kaggle",
+    "pandas"
 ]
 
 def get_extensions():
@@ -95,7 +96,7 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.2.0",
+        version="0.3.5",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model",

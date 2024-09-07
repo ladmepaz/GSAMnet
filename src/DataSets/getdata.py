@@ -156,7 +156,6 @@ class thermal_feet_dataset():
                 "mtf": self.final_path_m ,
                 "itf": self.final_path_i
             }
-            print("apigood")
             if self.dataset in dataset_ids:
                 dataset_id = dataset_ids[self.dataset]
                 api.dataset_download_files(dataset_id, path=path_zip[self.dataset])
@@ -320,7 +319,7 @@ class thermal_feet_dataset():
                                            self.dataset)
 
       if torch_dataset:
-        if batch_size is not None or shuffle is not None:
+        if batch_size is None or shuffle is None:
             raise ValueError(f"To create a DataLoader, specify batch_size and shuffle")
         return DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle), DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)
       
@@ -356,7 +355,7 @@ class thermal_feet_dataset():
                                        self.dataset)
 
       if torch_dataset:
-        if batch_size is not None or shuffle is not None:
+        if batch_size is None or shuffle is None:
             raise ValueError(f"To create a DataLoader, specify batch_size and shuffle")
         return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
