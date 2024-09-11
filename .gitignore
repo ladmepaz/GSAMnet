@@ -9,6 +9,7 @@ __pycache__/
 src\\DataSets\\Mamitas_Thermal_Dataset\\kaggle.json
 data\\
 src\\DataSets\\Mamitas_Thermal_Dataset\\mamitas-thermal-feet.zip
+src\\groundino_samnet\\gsam_combined.py
 pruebas.py
 main.ipynb
 pruebaf.ipynb

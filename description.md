@@ -27,11 +27,17 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.3.5
+## Version 0.4.0
 
-### Chagend
+### Changed:
 
-Changed: Individual Post-proccesing for predict_dino in single and batch mode.
+Changed: New logic for utilizing the models
+
+### Fixed
+
+Fixed: Error in box and point inputs for SAM2, preparation function added for this.
+
+Fixes: Errors in using SAM2 for batch processing
 
 
 
