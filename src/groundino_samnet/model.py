@@ -22,18 +22,25 @@ class GSamnet(nn.Module):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dino_args = dino_args
         self.sam_args = sam_args
-    def forward(self,image,return_all):
+    def forward(self,image,return_all= False):
         unbatch = False
         if image.shape[0] == 1:
             unbatch = True
+    
+        text_prompt = self.dino_args.get("text_prompt","feet . foot . soles")
+        box_threshold = self.dino_args.get("box_threshold",0.10)
+        text_threshold = self.dino_args.get("text_threshold",0.30)
+        box_process_threshold = self.dino_args.get("box_process_threshold",0.10)
+        postproccesingv2 = self.dino_args.get("postprocessing",True)
 
+        area_threshold = self.sam_args.get("area_threshold",700)
         boxes, logits, phrases, shape = self.predict_dino_batch(model=self.dino_args["model"],
                                                           images=image,
-                                                          text_prompt=self.dino_args["text_prompt"],
-                                                          box_threshold=self.dino_args["box_threshold"],
-                                                          text_threshold=self.dino_args["text_threshold"],
-                                                          box_process_threshold=self.dino_args["box_process_threshold"],
-                                                          postproccesingv2=self.dino_args["postproccesing"])
+                                                          text_prompt=text_prompt,
+                                                          box_threshold=box_threshold,
+                                                          text_threshold=text_threshold,
+                                                          box_process_threshold=box_process_threshold,
+                                                          postproccesingv2=postproccesingv2)
         H,W = shape
         if self.sam_args["points"]:
             boxes_p = [box_cxcywh_to_xyxy(box) * torch.tensor([W,H,W,H]) for box in boxes]
@@ -46,17 +53,18 @@ class GSamnet(nn.Module):
         if self.sam_args["model"].name == "SAM1":
             mask = self.predict_SAM1_batch(model=self.sam_args["model"],
                                      images=image,
-                                     area_thresh=self.sam_args["area_threshold"],
+                                     area_thresh=area_threshold,
                                      boxes=boxes,
                                      points_coords=points_coords,
                                      points_labels=points_labels)
+                                     
             
         elif self.sam_args["model"].name == "SAM2":
             boxes = [box_convert(box * torch.Tensor([W, H, W, H]), in_fmt="cxcywh", out_fmt="xyxy") for box in boxes]
 
             mask = self.predict_SAM2_batch(model=self.sam_args["model"],
                                      images=image,
-                                     area_thresh=self.sam_args["area_threshold"],
+                                     area_thresh=area_threshold,
                                      boxes=boxes,
                                      points_coords=points_coords,
                                      points_labels=points_labels)
@@ -64,8 +72,8 @@ class GSamnet(nn.Module):
             
         
         if self.sam_args["torch"]:
+            print(len(mask))
             mask = [torch.Tensor(maski) for maski in mask]
-
         if return_all:
             if unbatch:
                 return boxes[0],logits[0],phrases[0],mask[0]
@@ -334,36 +342,17 @@ class GSamnet(nn.Module):
             Returns:
                 The predicted masks for each image.
         """
-
-        images_numpy_array = [convert_image_to_numpy(image) for image in images]
-        try:
-            try:
-                with torch.inference_mode(),  torch.autocast("cuda", dtype=torch.bfloat16):
-                    model.set_image_batch(images_numpy_array)
-                    masks,_,_ = model.predict_batch(point_coords_batch=points_coords,
-                                                    point_labels_batch=points_labels,
-                                                    box_batch=boxes,
-                                                    multimask_output=multimask_output)
-                    
-                    model.reset_predictor()
-                    masks = [torch.Tensor(mask).to(torch.bool) for mask in masks]
-                    masks = PostProcessor().postprocess_masks(masks,area_thresh=area_thresh)
-                    masks = [torch.any(mask,dim=0).permute(1,2,0).numpy() for mask in masks]
-                return masks
-            except:
-                print(f"Warning: Default batch mode of SAM2 did not work, individual masks for each image will be calculated.")
-                for image,box,point,label in zip(images,boxes,points_coords,points_labels):
-                    masks = []
-                    mask = self.predict_SAM2(model=model,
-                                             image=image,
-                                             area_thresh=area_thresh,
-                                             boxes=box,
-                                             point_coords=point,
-                                             point_labels=label)
-                    masks.append(mask)
-                return masks
-        finally:
-            model.reset_predictor()
+        masks = []
+        for image,box,point,label in zip(images,boxes,points_coords,points_labels):
+            
+            mask = self.predict_SAM2(model=model,
+                                        image=image,
+                                        area_thresh=area_thresh,
+                                        boxes=box,
+                                        point_coords=point,
+                                        point_labels=label)
+            masks.append(mask)
+        return masks
 
     def __prep_prompts_SAM1(self,
                        boxes: Optional[torch.Tensor],

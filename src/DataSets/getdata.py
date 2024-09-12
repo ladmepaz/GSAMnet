@@ -60,6 +60,23 @@ class Mamitas_Create_Dataset(Dataset):
                                                                          self.dataset)
 
         return img, mask, id_image
+    
+    def get_item_by_id(self,id):
+        def get_item(id):
+            try:
+                idx = next(i for i, root in enumerate(self.file_images) if thermal_feet_dataset.extract_id(root, self.dataset) == id)
+                return self.__getitem__(idx)
+            except:
+                raise ValueError(f"Error finding the image {id}, please verify that the ID is correctly written.")
+        
+        if isinstance(id,list):
+            result =  [get_item(i) for i in id]
+            return zip(*result)
+        elif isinstance(id,str):
+            return get_item(id)
+
+
+
 
 class thermal_feet_dataset():
     def __init__(self,

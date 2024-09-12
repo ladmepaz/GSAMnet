@@ -7,3 +7,5 @@ include src/groundingdino/models/GroundingDINO/csrc/MsDeformAttn/*
 include README.md
 include LICENSE
 include description.md
+
+exclude src/groundino_samnet/gsam_combined.py

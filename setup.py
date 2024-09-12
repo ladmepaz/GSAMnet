@@ -96,10 +96,10 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.3.9",
+        version="0.4.4",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
-        description="A SAM model with GroundingDINO model",
+        description="A SAM model with GroundingDINO model for feet segmentation",
         long_description=README,
         long_description_content_type="text/markdown",
         license=license,

@@ -1,7 +1,9 @@
 import torch
 import numpy as np
 import pandas as pd
+import time
 from typing import Tuple
+from torch.utils.data import DataLoader
 class Metrics():
   """
   Class for segmentation metrics
@@ -26,6 +28,11 @@ class Metrics():
     Returns:
       A dictionary with the metrics
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+
     y_pred = y_pred.to(device=self.device)
     y_true = y_true.to(device=self.device)
     jaccard = self.jaccard(y_pred,y_true)
@@ -85,6 +92,11 @@ class Metrics():
       fn: False negatives
       tn: True negatives
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+
     output = torch.flatten(y_pred).to(torch.bool)
     target = torch.flatten(y_true).to(torch.bool)
     tp = torch.count_nonzero(output & target).to(torch.float32) # TP
@@ -104,6 +116,11 @@ class Metrics():
     Returns:
       The Jaccard or IoU score
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+
     tp,fp,fn,tn = self.calculate_confusion_matrix(y_pred=y_pred,y_true=y_true)
     return (tp / (tp + fp + fn + self.smooth)).cpu().detach().item()
 
@@ -119,6 +136,11 @@ class Metrics():
     Returns:
       The Dice score
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+
     tp,fp,fn,tn = self.calculate_confusion_matrix(y_pred=y_pred,y_true=y_true)
     return (2 * tp / (2 * tp + fp + fn + self.smooth)).cpu().detach().item()
 
@@ -134,6 +156,11 @@ class Metrics():
     Returns:
       The mIoU score
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+
     tp,fp,fn,tn = self.calculate_confusion_matrix(y_pred=y_pred,y_true=y_true)
     iou_background = tn / (tn + fp + fn + self.smooth)
     iou_object = tp / (tp + fp + fn + self.smooth)
@@ -151,6 +178,11 @@ class Metrics():
     Returns:
       The sensitivity score
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+
     tp,fp,fn,tn = self.calculate_confusion_matrix(y_pred=y_pred,y_true=y_true)
     return (tp / (tp + fn + self.smooth)).cpu().detach().item()
 
@@ -166,8 +198,50 @@ class Metrics():
     Returns:
       The specificity score
     """
+    if isinstance(y_pred,np.ndarray):
+      y_pred = torch.Tensor(y_pred).to(self.device)
+    if isinstance(y_true,np.ndarray):
+      y_true = torch.Tensor(y_true).to(self.device)
+      
     tp,fp,fn,tn = self.calculate_confusion_matrix(y_pred=y_pred,y_true=y_true)
     return (tn / (tn + fp + self.smooth)).cpu().detach().item()
+
+  def calculate_fps(self,model,images):
+    if isinstance(images,list):
+      max_iter = len(images)
+      t = 0
+      for i in range(max_iter):
+          image = images[i]
+          if torch.cuda.is_available():
+              torch.cuda.synchronize()
+          t1 = time.time()
+          mask = model(image)
+          t2 = time.time()
+          t += (t2 - t1)
+      # Calcular el tiempo medio y FPS
+      avg_time = t / max_iter
+      fps = 1 / avg_time
+
+      print(f"Average Time per Image: {avg_time:.4f} seconds")
+      print(f"FPS: {fps:.1f}")
+      return fps
+    elif isinstance(images,DataLoader):
+      max_iter = sum(len(batch[0]) for batch in images)
+      t = 0
+      for image,_,_ in images:
+          if torch.cuda.is_available():
+              torch.cuda.synchronize()
+          t1 = time.time()
+          mask = model(image)
+          t2 = time.time()
+          t += (t2 - t1)
+      # Calcular el tiempo medio y FPS
+      avg_time = t / max_iter
+      fps = 1 / avg_time
+
+      print(f"Average Time per Image: {avg_time:.4f} seconds")
+      print(f"FPS: {fps:.1f}")
+      return fps
 
   def get_device(self):
     """
