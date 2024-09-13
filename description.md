@@ -27,16 +27,5 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.4.4
-### Added:
-
-Added: FPS calculation can now be performed with either a list of images or a DataLoader.
-
-### Fixed:
-
-Fixed: Error in batch mode calculation in SAM2.
-
-Fixed: Changed the way the batch is calculated for SAM2 (removed the default batch implementation of SAM, it does not support large volumes of images).
-
-
+## Version 0.4.5
 

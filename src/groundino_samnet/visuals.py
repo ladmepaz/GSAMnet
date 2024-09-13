@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from .utils import convert_image_to_numpy
 from typing import List, Tuple, Optional, Union
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
 import torch
 
 def plot_grid_dino(images,idss,boxes,logits,phrases,**args):
@@ -108,49 +110,77 @@ def show_box(box, ax):
     w, h = box[2] - box[0], box[3] - box[1]
     ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0, 0, 0, 0), lw=2))    
 
-def show_result(image,mask=None, point_coords=None, box_coords=None, input_labels=None, borders=True):
-    plt.figure(figsize=(10, 10))
-    plt.imshow(image)
+def show_result(image, mask=None, point_coords=None, box_coords=None, input_labels=None, borders=True, show=True):
+    # Crear la figura sin márgenes ni espacios extras
+    fig, ax = plt.subplots(figsize=(image.shape[1] / 100, image.shape[0] / 100), dpi=100)
+    ax.imshow(image)
+
     if mask is not None:
-        if isinstance(mask,torch.Tensor):
-            mask = np.asarray(mask)
-        show_mask(mask, plt.gca(), borders=borders)
+        if isinstance(mask, torch.Tensor):
+            mask = np.asarray(mask).squeeze(2)
+        show_mask(mask, ax, borders=borders)
 
     if point_coords is not None:
         assert input_labels is not None
+        if isinstance(point_coords, torch.Tensor):
+            point_coords = np.asarray(point_coords)
+        if isinstance(input_labels, torch.Tensor):
+            input_labels = np.asarray(input_labels)
+        show_points(point_coords, input_labels, ax)
 
-        if isinstance(point_coords,torch.Tensor):
-            point_coords = np.asarray(point_coords)
-        if isinstance(input_labels,torch.Tensor):
-            point_coords = np.asarray(point_coords)
-        show_points(point_coords, input_labels, plt.gca())
     if box_coords is not None:
-        if isinstance(box_coords,torch.Tensor):
+        if isinstance(box_coords, torch.Tensor):
             box_coords = np.asarray(box_coords)
         for box in box_coords:
-            show_box(box, plt.gca())
-    plt.axis('off')
-    plt.show()
+            show_box(box, ax)
 
-#Arreglar
-def plot_grid_sam(images,idss,boxes,points,labels,masks,**args):
+    # Eliminar los ejes
+    ax.axis('off')
+
+    # Quitar márgenes
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # Redibujar la figura y convertir a un array
+    fig.canvas.draw()
+
+    # Asegurar que el tamaño del canvas coincida con la imagen
+    img_as_array = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+    img_as_array = img_as_array.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+        return img_as_array
+    return None
+
+def plot_grid_sam(images, idss, masks, boxes = None, points=None, labels=None,**args):
   imag_max = args.get("image_max",10) #cambiado, truncado de 20 a 10
   padding = args.get("padding",1)
+  figsize = args.get("figsize",(20,20))
   if len(images) > imag_max:
     print(f"Warning: The amount displayed will be truncated to {imag_max}. You can change this value using the image_max argument, but there is a risk of not displaying the images correctly.")
     images = images[:imag_max]
     idss = idss[:imag_max]
-    boxes = boxes[:imag_max]
-    logits = logits[:imag_max]
-    phrases = phrases[:imag_max]
+    if boxes is not None:
+        boxes = boxes[:imag_max]
+    else:
+        boxes = [None] * len(images)
+    masks = masks[:imag_max]
+    if points is not None:
+        points = points[:imag_max]
+        labels = labels[:imag_max]
+    else:
+        points = [None] * len(images)
+        labels = [None] * len(images)
     images = [convert_image_to_numpy(image) for image in images]
   annotated_frames = []
-  for i in range(len(boxes)):
-    annotated_frame = annotate(image_source=images[i], boxes=boxes[i], logits=logits[i], phrases=phrases[i])
+  for i in range(len(images)):
+    annotated_frame = show_result(images[i],masks[i],points[i],boxes[i],labels[i],show=False)
     annotated_frames.append(annotated_frame)
   plot_image_grid(
     images=annotated_frames,
-    image_size=(20, 20),
+    image_size=(20,20),
     titles=idss,
     padding=padding
   )

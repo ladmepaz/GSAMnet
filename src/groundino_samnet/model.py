@@ -15,6 +15,8 @@ from groundingdino.util import box_ops
 from groundingdino.util.inference import predict, load_model
 from torchvision.ops import box_convert
 from groundingdino.util.box_ops import box_cxcywh_to_xyxy
+from DataSets.getdata import thermal_feet_dataset, ToBoolTensor, PermuteTensor
+from torchvision.transforms import transforms
 import torch.nn as nn
 class GSamnet(nn.Module):
     def __init__(self,dino_args =None,sam_args= None):
@@ -22,10 +24,36 @@ class GSamnet(nn.Module):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dino_args = dino_args
         self.sam_args = sam_args
+
+        self.transform_mask = transforms.Compose([
+            ToBoolTensor(),
+            PermuteTensor((1,2,0)) # (WxHxC)
+        ])
+        self.transform_img = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.ConvertImageDtype(torch.uint8),
+            PermuteTensor((1,2,0)) #(WxHxC)
+        ])
+
+    def dummy_input(self):
+        try:
+            image,_,_ = thermal_feet_dataset.load_instance(root_name_img=os.path.join(os.path.dirname(__file__),"dummy_input","t0.jpg"),
+                                                            root_name_mask=os.path.join(os.path.dirname(__file__),"dummy_input","t0.png"),
+                                                            merge_image=True,
+                                                            transform_img=self.transform_img,
+                                                            transform_mask=self.transform_mask,
+                                                            dataset="mtf")
+            
+            self.forward([image])
+            print("Notice: Warm-up inference completed.")
+        except Exception as e:
+            print(f"Error occurred loading the dummy image for warm-up inference: {e}")
+            
     def forward(self,image,return_all= False):
         unbatch = False
-        if image.shape[0] == 1:
+        if (isinstance(image,torch.Tensor) and image.shape[0] == 1) or (isinstance(image,list) and len(image) == 1):
             unbatch = True
+        
     
         text_prompt = self.dino_args.get("text_prompt","feet . foot . soles")
         box_threshold = self.dino_args.get("box_threshold",0.10)
@@ -35,12 +63,12 @@ class GSamnet(nn.Module):
 
         area_threshold = self.sam_args.get("area_threshold",700)
         boxes, logits, phrases, shape = self.predict_dino_batch(model=self.dino_args["model"],
-                                                          images=image,
-                                                          text_prompt=text_prompt,
-                                                          box_threshold=box_threshold,
-                                                          text_threshold=text_threshold,
-                                                          box_process_threshold=box_process_threshold,
-                                                          postproccesingv2=postproccesingv2)
+                                                        images=image,
+                                                        text_prompt=text_prompt,
+                                                        box_threshold=box_threshold,
+                                                        text_threshold=text_threshold,
+                                                        box_process_threshold=box_process_threshold,
+                                                        postproccesingv2=postproccesingv2)
         H,W = shape
         if self.sam_args["points"]:
             boxes_p = [box_cxcywh_to_xyxy(box) * torch.tensor([W,H,W,H]) for box in boxes]
@@ -52,27 +80,25 @@ class GSamnet(nn.Module):
 
         if self.sam_args["model"].name == "SAM1":
             mask = self.predict_SAM1_batch(model=self.sam_args["model"],
-                                     images=image,
-                                     area_thresh=area_threshold,
-                                     boxes=boxes,
-                                     points_coords=points_coords,
-                                     points_labels=points_labels)
-                                     
+                                    images=image,
+                                    area_thresh=area_threshold,
+                                    boxes=boxes,
+                                    points_coords=points_coords,
+                                    points_labels=points_labels)
+                                    
             
         elif self.sam_args["model"].name == "SAM2":
             boxes = [box_convert(box * torch.Tensor([W, H, W, H]), in_fmt="cxcywh", out_fmt="xyxy") for box in boxes]
 
             mask = self.predict_SAM2_batch(model=self.sam_args["model"],
-                                     images=image,
-                                     area_thresh=area_threshold,
-                                     boxes=boxes,
-                                     points_coords=points_coords,
-                                     points_labels=points_labels)
-            
-            
+                                    images=image,
+                                    area_thresh=area_threshold,
+                                    boxes=boxes,
+                                    points_coords=points_coords,
+                                    points_labels=points_labels)
+        
         
         if self.sam_args["torch"]:
-            print(len(mask))
             mask = [torch.Tensor(maski) for maski in mask]
         if return_all:
             if unbatch:
@@ -155,7 +181,7 @@ class GSamnet(nn.Module):
                 The predicted bounding boxes with (B,4) shape with logits and phrases.
         """
         postproccesingv1 = args.get("postproccesingv1",False)
-        postproccesingv2 = args.get("postproccesingv2",False)
+        postproccesingv2 = args.get("postproccesingv2",True)
         results = list(map(lambda image: self.predict_dino(model=model,
                                                            image=image,
                                                            text_prompt=text_prompt,
