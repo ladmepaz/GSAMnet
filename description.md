@@ -27,5 +27,5 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.4.5
+## Version 0.4.6
 
