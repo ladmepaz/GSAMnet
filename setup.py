@@ -22,7 +22,7 @@ from setuptools import find_namespace_packages
 import pathlib
 
 from setuptools import setup, find_packages
-link = "https://download.pytorch.org/whl/cu121"
+
 REQUIRED_PACKAGES = [
     "numpy==1.26.4",
     "transformers==4.42.4",
@@ -108,9 +108,9 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.4.10",
+        version="0.4.11",
         author="Wilhelm David Buitrago Garcia",
-        url="https://github.com/WilhelmBuitrago/DiagAssistAI",
+        url="https://github.com/ladmepaz/GSAMnet",
         description="A SAM model with GroundingDINO model for feet segmentation",
         long_description=README,
         long_description_content_type="text/markdown",
@@ -131,7 +131,7 @@ def build_extensions():
             "Programming Language :: Python :: 3.10"
         ],
         project_urls={
-            "Grounding-samnet": "https://github.com/WilhelmBuitrago/DiagAssistAI"
+            "GSAMnet": "https://github.com/ladmepaz/GSAMnet"
         },
     )
 
