@@ -3,7 +3,19 @@ import glob
 import sys  
 os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
 import subprocess
-import torch
+try:
+    import torch
+except:
+    try:
+        subprocess.check_call([
+            sys.executable, '-m', 'pip', 'install', 
+            'torch', 'torchvision', 'torchaudio', 
+            '--index-url', 'https://download.pytorch.org/whl/cu121'
+        ])
+        print("Instalación completada con CUDA 12.1.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error durante la instalación: {e}")
+
 from torch.utils.cpp_extension import CUDA_HOME,CppExtension,CUDAExtension,BuildExtension
 from setuptools.command.install import install
 from setuptools import find_namespace_packages
@@ -96,7 +108,7 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.4.8",
+        version="0.4.10",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model for feet segmentation",
@@ -113,7 +125,7 @@ def build_extensions():
         install_requires=REQUIRED_PACKAGES,
         ext_modules=get_extensions(),
         cmdclass={"build_ext": BuildExtension},
-        python_requires='==3.10',
+        #python_requires='==3.10',
         classifiers=[
             "Programming Language :: Python :: 3",
             "Programming Language :: Python :: 3.10"
