@@ -234,6 +234,21 @@ class thermal_feet_dataset():
           img = thermal_feet_dataset.__preprocessing_img(img,transform_img)
         id_image = thermal_feet_dataset.extract_id(root_name_img,dataset)
         return img, mask, id_image
+    
+    @staticmethod
+    def load_instance_image(image,merge_image: bool):
+        img = Image.open(image).convert('L')
+        if merge_image:
+           img = Image.merge('RGB',(img,img,img))
+
+        transform_img = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.ConvertImageDtype(torch.uint8),
+            PermuteTensor((1,2,0)) #(WxHxC)
+        ])
+        img = thermal_feet_dataset.__preprocessing_img(img,transform_img)
+
+        return img
 
     @staticmethod
     def __preprocessing_mask(mask: Image.Image,

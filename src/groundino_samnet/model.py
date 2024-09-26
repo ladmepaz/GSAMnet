@@ -499,13 +499,14 @@ class GSamnet(nn.Module):
                 SAM: The name of the SAM model to build.
         """
         try:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             checkpoint_url = SAM2_MODELS[SAM]
-            SAM2 = SAM2ImagePredictor.from_pretrained(checkpoint_url)
+            SAM2 = SAM2ImagePredictor.from_pretrained(checkpoint_url,device=device)
             if return_model is not None:
                 if return_model:
                     return SAM2
-        except:
-            raise RuntimeError(f"Error downloading or Compile {SAM} model. Please ensure that {SAM2_MODELS[SAM]} is functional.")
+        except Exception as e:
+            raise RuntimeError(f"Error downloading or Compile {SAM} model. Please ensure that {SAM2_MODELS[SAM]} is functional: {e}")
 
 def load_models(model):
 

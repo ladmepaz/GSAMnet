@@ -96,7 +96,7 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.4.6",
+        version="0.4.8",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/WilhelmBuitrago/DiagAssistAI",
         description="A SAM model with GroundingDINO model for feet segmentation",
@@ -113,7 +113,7 @@ def build_extensions():
         install_requires=REQUIRED_PACKAGES,
         ext_modules=get_extensions(),
         cmdclass={"build_ext": BuildExtension},
-        python_requires='==3.10.12',
+        python_requires='==3.10',
         classifiers=[
             "Programming Language :: Python :: 3",
             "Programming Language :: Python :: 3.10"

@@ -27,5 +27,12 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.4.6
+## Version 0.4.8
+
+### Fixed
+
+Fixed: Error to compile sam2 models in CPU
+
+Fixed: Error to return image in getdata
+
 
