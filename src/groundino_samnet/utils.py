@@ -529,7 +529,7 @@ class PostProcessor2:
                     new_logits.append(torch.stack(filtered_logits))
                     new_phrases.append(filtered_phrases)
         else:
-            filtered_data = [(box, logit, phrase) for box, logit, phrase in zip(boxes, logits, phrases) if phrase]
+            filtered_data = [(box, logit, phrase) for box, logit, phrase in zip(boxes, logits, phrases) if phrase or logit > 0.20] 
             if not filtered_data:
                 #raise ValueError("No valid data found. No phrases for batch.")
                 return boxes,logits,phrases #momentaneo

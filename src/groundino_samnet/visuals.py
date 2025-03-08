@@ -11,7 +11,10 @@ import torch
 def plot_grid_dino(images,idss,boxes,logits,phrases,**args):
   imag_max = args.get("image_max",10) #cambiado, truncado de 20 a 10
   padding = args.get("padding",1)
-  if len(images) > imag_max:
+  if not isinstance(images,list):
+    plot_image(image=images,boxes=boxes,logits=logits,phrases=phrases)
+
+  elif len(images) > imag_max:
     print(f"Warning: The amount displayed will be truncated to {imag_max}. You can change this value using the image_max argument, but there is a risk of not displaying the images correctly.")
     images = images[:imag_max]
     idss = idss[:imag_max]
@@ -19,16 +22,16 @@ def plot_grid_dino(images,idss,boxes,logits,phrases,**args):
     logits = logits[:imag_max]
     phrases = phrases[:imag_max]
     images = [convert_image_to_numpy(image) for image in images]
-  annotated_frames = []
-  for i in range(len(boxes)):
-    annotated_frame = annotate(image_source=images[i], boxes=boxes[i], logits=logits[i], phrases=phrases[i])
-    annotated_frames.append(annotated_frame)
-  plot_image_grid(
-    images=annotated_frames,
-    image_size=(20, 20),
-    titles=idss,
-    padding=padding
-  )
+    annotated_frames = []
+    for i in range(len(boxes)):
+      annotated_frame = annotate(image_source=images[i], boxes=boxes[i], logits=logits[i], phrases=phrases[i])
+      annotated_frames.append(annotated_frame)
+    plot_image_grid(
+      images=annotated_frames,
+      image_size=(20, 20),
+      titles=idss,
+      padding=padding
+    )
 
 def plot_image_grid(images: List, grid_size:Optional[Tuple] = None, image_size: Tuple = (10, 10), titles: List[str] = None, padding:Union[float,int] =1):
     """
@@ -74,10 +77,13 @@ def plot_image_grid(images: List, grid_size:Optional[Tuple] = None, image_size: 
     plt.subplots_adjust(wspace=padding / image_size[0], hspace=padding / image_size[1])
     plt.show()
 
-def plot_image(image,boxes,logits,phrases):
-  convert_image_to_numpy(image)
-  annotated_frame = annotate(image_source=image, boxes=boxes, logits=logits, phrases=phrases)
-  sv.plot_image(annotated_frame, (16, 16))
+def plot_image(image,boxes,logits,phrases,return_image=False):
+    image = convert_image_to_numpy(image)
+    annotated_frame = annotate(image_source=image, boxes=boxes, logits=logits, phrases=phrases)
+    if return_image:
+        return annotated_frame
+    else:
+        sv.plot_image(annotated_frame, (16, 16))
 
 
 #Code from SAM2

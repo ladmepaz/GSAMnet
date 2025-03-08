@@ -27,10 +27,9 @@ To install the package, use:
 pip install groundino-samnet
 ``
 
-## Version 0.4.11
+## Version 0.5.13
 
-### Changed
+### Fixed
 
-Changed: The repository links have been changed to those of the ladmepaz organization.
-
+Fixed: Error to segment without points o boxes.
 

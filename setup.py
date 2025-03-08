@@ -3,27 +3,39 @@ import glob
 import sys  
 os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
 import subprocess
-try:
-    import torch
-except:
-    try:
-        subprocess.check_call([
-            sys.executable, '-m', 'pip', 'install', 
-            'torch', 'torchvision', 'torchaudio', 
-            '--index-url', 'https://download.pytorch.org/whl/cu121'
-        ])
-        print("Instalación completada con CUDA 12.1.")
-    except subprocess.CalledProcessError as e:
-        print(f"Error durante la instalación: {e}")
-
-from torch.utils.cpp_extension import CUDA_HOME,CppExtension,CUDAExtension,BuildExtension
 from setuptools.command.install import install
 from setuptools import find_namespace_packages
 import pathlib
-
 from setuptools import setup, find_packages
 
+
+class CustomInstallCommand(install):
+    """Clase personalizada para garantizar la instalación de PyTorch con CUDA antes de la compilación."""
+    
+    def run(self):
+        # Intentar instalar PyTorch con CUDA si no está instalado
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                raise ImportError("PyTorch instalado, pero sin soporte CUDA.")
+        except ImportError:
+            print("Instalando PyTorch con soporte CUDA...")
+            subprocess.check_call([
+                sys.executable, '-m', 'pip', 'install',
+                'torch==2.4.1+cu121', 'torchvision==0.19.1+cu121', 'torchaudio==2.4.1+cu121',
+                '--index-url', 'https://download.pytorch.org/whl/cu121'
+            ])
+            print("Instalación completada con soporte CUDA.")
+
+        # Llamar al comando de instalación original para continuar
+        install.run(self)
+
+import torch
+from torch.utils.cpp_extension import CppExtension,CUDAExtension,BuildExtension
 REQUIRED_PACKAGES = [
+    "torch==2.4.1+cu121",
+    "torchvision==0.19.1+cu121",
+    "torchaudio==2.4.1+cu121",
     "numpy==1.26.4",
     "transformers==4.42.4",
     "huggingface_hub==0.23.5",
@@ -57,7 +69,7 @@ def get_extensions():
     extra_compile_args = {"cxx": []}
     define_macros = []
 
-    if CUDA_HOME is not None and (torch.cuda.is_available() or "TORCH_CUDA_ARCH_LIST" in os.environ):
+    if torch.cuda.is_available():
         print("Compiling with CUDA")
         extension = CUDAExtension
         sources += source_cuda
@@ -108,7 +120,7 @@ def build_extensions():
     README = (HERE / "description.md").read_text()
     setup(
         name="groundino_samnet",
-        version="0.4.11",
+        version="0.5.13",
         author="Wilhelm David Buitrago Garcia",
         url="https://github.com/ladmepaz/GSAMnet",
         description="A SAM model with GroundingDINO model for feet segmentation",
@@ -120,11 +132,13 @@ def build_extensions():
         include_package_data=True,
         package_data={
             "": ["segment_anything2/sam2_config/*.yaml"],
-            "groundino_samnet": ["description.md"]
+            "groundino_samnet": ["description.md"],
+            "": ["mobilesamv2/weights/*.pt"]
         },
         install_requires=REQUIRED_PACKAGES,
         ext_modules=get_extensions(),
-        cmdclass={"build_ext": BuildExtension},
+        cmdclass={"build_ext": BuildExtension,
+                  'install': CustomInstallCommand},
         #python_requires='==3.10',
         classifiers=[
             "Programming Language :: Python :: 3",

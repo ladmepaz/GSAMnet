@@ -11,6 +11,8 @@ from segment_anything1.predictor import SamPredictor
 from segment_anything1.config import SAM1_MODELS, SAM_NAMES_MODELS
 from segment_anything2.config import SAM2_MODELS
 from segment_anything2.sam2_image_predictor import SAM2ImagePredictor
+from mobilesam.build_sam import sam_model_registry_mobile
+from mobilesam.predictor import SamPredictorMobile
 from groundingdino.util import box_ops
 from groundingdino.util.inference import predict, load_model
 from torchvision.ops import box_convert
@@ -60,6 +62,7 @@ class GSamnet(nn.Module):
         text_threshold = self.dino_args.get("text_threshold",0.30)
         box_process_threshold = self.dino_args.get("box_process_threshold",0.10)
         postproccesingv2 = self.dino_args.get("postprocessing",True)
+        boxes_i = self.sam_args.get("boxes",True)
 
         area_threshold = self.sam_args.get("area_threshold",700)
         boxes, logits, phrases, shape = self.predict_dino_batch(model=self.dino_args["model"],
@@ -70,6 +73,8 @@ class GSamnet(nn.Module):
                                                         box_process_threshold=box_process_threshold,
                                                         postproccesingv2=postproccesingv2)
         H,W = shape
+        if self.sam_args["points"] is False and boxes_i is False:
+            raise ValueError(f"Point or box mode (or both) must be selected in sam_args; segmentation cannot proceed without any mode: (points: True or boxes: True).")
         if self.sam_args["points"]:
             boxes_p = [box_cxcywh_to_xyxy(box) * torch.tensor([W,H,W,H]) for box in boxes]
             result = [box_xyxy_to_point(box) for box in boxes_p]
@@ -77,6 +82,9 @@ class GSamnet(nn.Module):
         else:
             points_coords = None
             points_labels = None
+
+        if boxes_i is False:
+            boxes = None
 
         if self.sam_args["model"].name == "SAM1":
             mask = self.predict_SAM1_batch(model=self.sam_args["model"],
@@ -102,9 +110,9 @@ class GSamnet(nn.Module):
             mask = [torch.Tensor(maski) for maski in mask]
         if return_all:
             if unbatch:
-                return boxes[0],logits[0],phrases[0],mask[0]
+                return boxes[0] if boxes_i else boxes,logits[0],phrases[0],points_coords[0] if self.sam_args["points"] else points_coords, points_labels[0] if self.sam_args["points"] else points_labels,mask[0]
             else:
-                return boxes,logits,phrases,mask
+                return boxes,logits,phrases,points_coords,points_labels,mask
         else:
             if unbatch:
                 return mask[0]
@@ -227,7 +235,8 @@ class GSamnet(nn.Module):
                 The predicted segmentation mask with (WxHx1) shape.
     """
         image_array = convert_image_to_numpy(image)
-        transformed_boxes,transformed_points,points_labels = self.__prep_prompts_SAM1(boxes,
+        transformed_boxes,transformed_points,points_labels = self.__prep_prompts_SAM1(model,
+                                                                                 boxes,
                                                                                  points_coords,
                                                                                  points_labels,
                                                                                  image_array.shape[:2])
@@ -381,6 +390,7 @@ class GSamnet(nn.Module):
         return masks
 
     def __prep_prompts_SAM1(self,
+                       model,
                        boxes: Optional[torch.Tensor],
                        points_coords: Optional[torch.Tensor],
                        points_labels: Optional[torch.tensor],
@@ -401,12 +411,15 @@ class GSamnet(nn.Module):
         H,W = dims 
 
         if boxes is not None:
-            clip_valor = np.clip(boxes[0][0], 0, 1)
-            if clip_valor == boxes[0][0]:
-                boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W,H,W,H])
-                transformed_boxes = self.SAM1.transform.apply_boxes_torch(boxes, (W,H))
+            if len(boxes) != 0:
+                clip_valor = np.clip(boxes[0][0], 0, 1)
+                if clip_valor == boxes[0][0]:
+                    boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W,H,W,H])
+                    transformed_boxes = model.transform.apply_boxes_torch(boxes, (W,H))
+                else:
+                    transformed_boxes = boxes #Agregado 
             else:
-                transformed_boxes = boxes #Agregado 
+                transformed_boxes=None
         else:
             transformed_boxes=None
 
@@ -415,7 +428,7 @@ class GSamnet(nn.Module):
         elif points_labels is not None and points_coords is None:
             raise ValueError("If 'points_labels' is provided, 'points_coords' must also be provided, and vice versa.")
         elif points_coords is not None and points_labels is not None:
-            transformed_points = self.SAM1.transform.apply_coords_torch(points_coords, dims)
+            transformed_points = model.transform.apply_coords_torch(points_coords, dims)
         else:
              transformed_points = None
              points_labels = None
@@ -488,7 +501,25 @@ class GSamnet(nn.Module):
                     return SAM1
         except Exception as e:
             raise RuntimeError(f"SAM1 model can't be compile: {str(e)}")
+    def __Build_MobileSAM(self,
+                          SAM:str,
+                          return_model: Optional[bool] = None):
+        """
+            Build the MobileSAM model.
 
+            Args:
+                SAM: The name of the SAM model to build.
+        """
+        try:
+            sam = sam_model_registry_mobile[SAM]()
+            sam.to(device=self.device)
+            sam.eval()
+            MOBILESAM = SamPredictorMobile(sam)
+            if return_model is not None:
+                if return_model:
+                    return MOBILESAM
+        except Exception as e:
+            raise RuntimeError(f"SAM1 model can't be compile: {str(e)}")
     def __Build_SAM2(self,
                      SAM:str,
                      return_model: Optional[bool] = None) -> None:
@@ -508,11 +539,15 @@ class GSamnet(nn.Module):
         except Exception as e:
             raise RuntimeError(f"Error downloading or Compile {SAM} model. Please ensure that {SAM2_MODELS[SAM]} is functional: {e}")
 
-def load_models(model):
+def load_models(model: Optional[str] = None):
 
     if model == "dino":
         modelo = GSamnet()._GSamnet__Build_GroundingDINO(return_model=True)
         modelo.name = "dino"
+        return modelo
+    elif model == "mobilesam":
+        modelo = GSamnet()._GSamnet__Build_MobileSAM(model,return_model=True)
+        modelo.name = "SAM1"
         return modelo
     else:
         if model in SAM1_MODELS:
@@ -529,6 +564,7 @@ def load_models(model):
 
 if __name__ == "__main__":
     from groundino_samnet.utils import PostProcessor, PostProcessor2, load_image, convert_image_to_numpy, box_xyxy_to_point
+    """
     sam = load_models("sam2_t")
     dino = load_models("dino")
 
@@ -549,6 +585,12 @@ if __name__ == "__main__":
     }
 
     model = GSamnet(dino_args=dino_args,sam_args=sam_args)
+    """
+    sam = sam_model_registry_mobile["mobilesam"]()
+    sam.to(device="cpu")
+    sam.eval()
+    MOBILESAM = SamPredictorMobile(sam)
+    print(MOBILESAM.device)
 
 else:
     from .utils import PostProcessor, PostProcessor2, load_image, convert_image_to_numpy, box_xyxy_to_point
